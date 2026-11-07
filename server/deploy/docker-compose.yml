@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hesh
+      POSTGRES_USER: hesh
+      POSTGRES_PASSWORD: ${HESH_DB_PASSWORD}
+    volumes:
+      - hesh_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hesh"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: ..
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      HESH_DATABASE_URL: postgresql+asyncpg://hesh:${HESH_DB_PASSWORD}@db:5432/hesh
+      HESH_ATTACHMENT_DIR: /data/attachments
+      HESH_INVITE_TTL_HOURS: "24"
+      HESH_QUEUE_TTL_DAYS: "30"
+      HESH_APNS_KEY_PATH: /secrets/apns.p8
+      HESH_APNS_KEY_ID: ${HESH_APNS_KEY_ID:-}
+      HESH_APNS_TEAM_ID: ${HESH_APNS_TEAM_ID:-}
+      HESH_APNS_TOPIC: ${HESH_APNS_TOPIC:-it.hesh.app}
+      HESH_APNS_SANDBOX: ${HESH_APNS_SANDBOX:-false}
+    volumes:
+      - hesh_attachments:/data/attachments
+      - ./secrets:/secrets:ro
+    ports:
+      - "127.0.0.1:8087:8080"   # solo loopback: Nginx fa da fronte
+
+volumes:
+  hesh_db:
+  hesh_attachments:

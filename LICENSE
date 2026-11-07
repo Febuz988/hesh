@@ -1,0 +1,29 @@
+HESH — messaggistica privata per un cerchio di fiducia
+Copyright (C) 2026 Fabio Guerrera
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+Additional permission under GNU AGPL version 3 section 7 (App Store
+exception): the copyright holder grants permission to distribute compiled
+builds of the iOS client through the Apple App Store and TestFlight under
+Apple's standard terms, notwithstanding any AGPL requirement those terms
+cannot satisfy, provided the complete corresponding source remains
+available under this license. External contributors accept this exception
+by contributing.
+
+NOTA: sostituire la parte iniziale di questo file con il testo integrale
+della licenza: https://www.gnu.org/licenses/agpl-3.0.txt (mantenere il
+paragrafo "Additional permission").

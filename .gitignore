@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.db
+attachments/
+server/deploy/.env
+server/deploy/secrets/
+.DS_Store
