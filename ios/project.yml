@@ -18,7 +18,7 @@ settings:
 packages:
   LibSignalClient:
     url: https://github.com/signalapp/libsignal
-    from: "0.80.0"
+    from: "0.106.0"
   GRDB:
     url: https://github.com/groue/GRDB.swift
     from: "7.0.0"

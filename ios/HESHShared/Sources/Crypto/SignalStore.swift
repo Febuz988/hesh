@@ -24,7 +24,7 @@ public final class SignalStore: IdentityKeyStore, PreKeyStore, SignedPreKeyStore
             if try Row.fetchOne(db, sql: "SELECT 1 FROM signal_local WHERE key = 'identity_key_pair'") == nil {
                 let pair = IdentityKeyPair.generate()
                 let regId = UInt32.random(in: 1...16380)
-                try db.execute(sql: "INSERT INTO signal_local(key, value) VALUES ('identity_key_pair', ?)", arguments: [Data(pair.serialize())])
+                try db.execute(sql: "INSERT INTO signal_local(key, value) VALUES ('identity_key_pair', ?)", arguments: [pair.serialize()])
                 try db.execute(sql: "INSERT INTO signal_local(key, value) VALUES ('registration_id', ?)", arguments: [withUnsafeBytes(of: regId.littleEndian) { Data($0) }])
             }
         }
@@ -54,7 +54,7 @@ public final class SignalStore: IdentityKeyStore, PreKeyStore, SignedPreKeyStore
         try db.write { db in
             let k = Self.key(address)
             let existing = try Data.fetchOne(db, sql: "SELECT identity_key FROM signal_identity WHERE address = ?", arguments: [k])
-            let new = Data(identity.serialize())
+            let new = identity.serialize()
             if let existing {
                 if existing == new { return .newOrUnchanged }
                 try db.execute(sql: "UPDATE signal_identity SET identity_key = ? WHERE address = ?", arguments: [new, k])
@@ -72,7 +72,7 @@ public final class SignalStore: IdentityKeyStore, PreKeyStore, SignedPreKeyStore
             guard let existing = try Data.fetchOne(db, sql: "SELECT identity_key FROM signal_identity WHERE address = ?", arguments: [Self.key(address)]) else {
                 return true
             }
-            return existing == Data(identity.serialize()) || direction == .receiving
+            return existing == identity.serialize() || direction == .receiving
         }
     }
 
@@ -96,7 +96,7 @@ public final class SignalStore: IdentityKeyStore, PreKeyStore, SignedPreKeyStore
 
     public func storePreKey(_ record: PreKeyRecord, id: UInt32, context: StoreContext) throws {
         try db.write { db in
-            try db.execute(sql: "INSERT OR REPLACE INTO signal_prekey(id, record) VALUES (?, ?)", arguments: [id, Data(record.serialize())])
+            try db.execute(sql: "INSERT OR REPLACE INTO signal_prekey(id, record) VALUES (?, ?)", arguments: [id, record.serialize()])
         }
     }
 
@@ -117,7 +117,7 @@ public final class SignalStore: IdentityKeyStore, PreKeyStore, SignedPreKeyStore
 
     public func storeSignedPreKey(_ record: SignedPreKeyRecord, id: UInt32, context: StoreContext) throws {
         try db.write { db in
-            try db.execute(sql: "INSERT OR REPLACE INTO signal_signed_prekey(id, record) VALUES (?, ?)", arguments: [id, Data(record.serialize())])
+            try db.execute(sql: "INSERT OR REPLACE INTO signal_signed_prekey(id, record) VALUES (?, ?)", arguments: [id, record.serialize()])
         }
     }
 
@@ -134,11 +134,11 @@ public final class SignalStore: IdentityKeyStore, PreKeyStore, SignedPreKeyStore
 
     public func storeKyberPreKey(_ record: KyberPreKeyRecord, id: UInt32, context: StoreContext) throws {
         try db.write { db in
-            try db.execute(sql: "INSERT OR REPLACE INTO signal_kyber_prekey(id, record, used) VALUES (?, ?, 0)", arguments: [id, Data(record.serialize())])
+            try db.execute(sql: "INSERT OR REPLACE INTO signal_kyber_prekey(id, record, used) VALUES (?, ?, 0)", arguments: [id, record.serialize()])
         }
     }
 
-    public func markKyberPreKeyUsed(id: UInt32, context: StoreContext) throws {
+    public func markKyberPreKeyUsed(id: UInt32, signedPreKeyId: UInt32, baseKey: PublicKey, context: StoreContext) throws {
         try db.write { db in try db.execute(sql: "UPDATE signal_kyber_prekey SET used = 1 WHERE id = ?", arguments: [id]) }
     }
 
@@ -157,7 +157,7 @@ public final class SignalStore: IdentityKeyStore, PreKeyStore, SignedPreKeyStore
 
     public func storeSession(_ record: SessionRecord, for address: ProtocolAddress, context: StoreContext) throws {
         try db.write { db in
-            try db.execute(sql: "INSERT OR REPLACE INTO signal_session(address, record) VALUES (?, ?)", arguments: [Self.key(address), Data(record.serialize())])
+            try db.execute(sql: "INSERT OR REPLACE INTO signal_session(address, record) VALUES (?, ?)", arguments: [Self.key(address), record.serialize()])
         }
     }
 
@@ -166,7 +166,7 @@ public final class SignalStore: IdentityKeyStore, PreKeyStore, SignedPreKeyStore
     public func storeSenderKey(from sender: ProtocolAddress, distributionId: UUID, record: SenderKeyRecord, context: StoreContext) throws {
         try db.write { db in
             try db.execute(sql: "INSERT OR REPLACE INTO signal_sender_key(key, record) VALUES (?, ?)",
-                           arguments: ["\(Self.key(sender))/\(distributionId.uuidString)", Data(record.serialize())])
+                           arguments: ["\(Self.key(sender))/\(distributionId.uuidString)", record.serialize()])
         }
     }
 
