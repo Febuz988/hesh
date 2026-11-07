@@ -114,4 +114,34 @@ class Attachment(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class Passkey(Base):
+    __tablename__ = "passkeys"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    credential_id: Mapped[bytes] = mapped_column(LargeBinary, unique=True)
+    public_key: Mapped[bytes] = mapped_column(LargeBinary)
+    sign_count: Mapped[int] = mapped_column(Integer, default=0)
+    name: Mapped[str] = mapped_column(String(64), default="Passkey")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class AuthChallenge(Base):
+    """Challenge WebAuthn in attesa; scade in 5 minuti."""
+    __tablename__ = "auth_challenges"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    challenge: Mapped[bytes] = mapped_column(LargeBinary)
+    user_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    kind: Mapped[str] = mapped_column(String(16))  # register | login
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Backup(Base):
+    """Blob cifrato dal client con la chiave derivata dalle 12 parole."""
+    __tablename__ = "backups"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    blob: Mapped[bytes] = mapped_column(LargeBinary)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 Index("ix_envelope_dev_created", Envelope.to_device, Envelope.created_at)

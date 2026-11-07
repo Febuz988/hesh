@@ -10,7 +10,7 @@ from sqlalchemy import delete, select
 from .config import settings
 from .db import SessionLocal, init_db
 from .models import Attachment, Envelope, now
-from .routes import attachments, devices, invites, keys, messages, register
+from .routes import attachments, auth, devices, invites, keys, messages, register
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 log = logging.getLogger("hesh")
@@ -48,6 +48,7 @@ app.include_router(keys.router)
 app.include_router(messages.router)
 app.include_router(attachments.router)
 app.include_router(devices.router)
+app.include_router(auth.router)
 
 
 @app.get("/healthz")

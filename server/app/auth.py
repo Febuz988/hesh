@@ -21,7 +21,11 @@ def new_token() -> str:
     return secrets.token_urlsafe(32)
 
 
+PROVISIONING_PATHS = ("/auth/backup", "/auth/reprovision", "/devices/me/logout")
+
+
 async def current_device(
+    request: Request,
     creds: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> Device:
@@ -30,6 +34,8 @@ async def current_device(
     dev = await session.scalar(select(Device).where(Device.token_hash == sha256(creds.credentials)))
     if dev is None or dev.revoked_at is not None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "sessione non valida")
+    if dev.device_id == 0 and not request.url.path.startswith(PROVISIONING_PATHS):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "dispositivo in provisioning: completa il ripristino")
     user = await session.get(User, dev.user_id)
     if user is None or user.disabled_at is not None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "account disattivato")

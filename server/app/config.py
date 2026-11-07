@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     apns_topic: str = "it.hesh.app"
     apns_sandbox: bool = True
 
+    rp_id: str = "hesh.it"
+    rp_name: str = "HESH"
+    backup_max_mb: int = 5
+
     @property
     def apns_enabled(self) -> bool:
         return bool(self.apns_key_path and self.apns_key_id and self.apns_team_id)

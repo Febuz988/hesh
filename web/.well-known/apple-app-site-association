@@ -1,0 +1,4 @@
+{
+  "applinks": { "apps": [], "details": [ { "appID": "UUA3H33LDT.it.hesh.app", "paths": [ "/i/*" ] } ] },
+  "webcredentials": { "apps": [ "UUA3H33LDT.it.hesh.app" ] }
+}

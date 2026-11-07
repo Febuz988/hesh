@@ -115,3 +115,20 @@ async def test_invite_register_keys_messages(client: AsyncClient):
     # logout revoca la sessione
     assert (await client.post("/devices/me/logout", headers=G)).status_code == 204
     assert (await client.get("/messages", headers=G)).status_code == 401
+
+
+async def test_backup_and_passkey_options(client: AsyncClient):
+    token = await seed_invite()
+    r = await client.post("/register", json=reg_body(token, "fabio"))
+    H = {"Authorization": f"Bearer {r.json()['token']}"}
+    blob = os.urandom(512)
+    assert (await client.put("/auth/backup", content=blob, headers=H)).status_code == 204
+    r = await client.get("/auth/backup", headers=H)
+    assert r.status_code == 200 and r.content == blob and r.headers["X-Backup-Version"] == "1"
+    r = await client.post("/auth/passkey/register/options", headers=H)
+    assert r.status_code == 200 and r.json()["options"]["rp"]["id"] == "hesh.it"
+    r = await client.post("/auth/passkey/login/options", json={"username": "fabio"})
+    assert r.status_code == 200 and "challenge" in r.json()["options"]
+    # utente inesistente: stessa forma di risposta, niente enumerazione
+    r = await client.post("/auth/passkey/login/options", json={"username": "nessuno"})
+    assert r.status_code == 200 and "challenge" in r.json()["options"]
