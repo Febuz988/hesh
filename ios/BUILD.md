@@ -31,5 +31,5 @@ Tutto il resto (GRDB, SwiftUI, AVFoundation, CoreLocation) e' API stabile.
 Per `https://hesh.it/i/<token>` servire su hesh.it il file `/.well-known/apple-app-site-association` (Content-Type `application/json`):
 
 ```json
-{"applinks":{"apps":[],"details":[{"appID":"TEAMID.it.hesh.app","paths":["/i/*"]}]}}
+{"applinks":{"apps":[],"details":[{"appID":"8Y6LKSFEJF.it.hesh.app","paths":["/i/*"]}]}}
 ```
