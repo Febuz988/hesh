@@ -231,7 +231,7 @@ struct PlacesView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fine") { dismiss() } } }
             .task {
-                for await list in ValueObservation.tracking({ db in try Place.fetchAll(db) }).values(in: Database.shared.pool) { places = list }
+                do { for try await list in ValueObservation.tracking({ db in try Place.fetchAll(db) }).values(in: Database.shared.pool) { places = list } } catch {}
             }
         }
     }
