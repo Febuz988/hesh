@@ -113,7 +113,7 @@ struct ChatRow: View {
         if last.deleted { return "Messaggio eliminato" }
         switch last.content?.kind {
         case .text: return last.content?.body ?? ""
-        case .attachment: return "Allegato"
+        case .attachment: return last.content?.isImage == true ? "Foto" : last.content?.isVoice == true ? "Messaggio vocale" : (last.content?.name ?? "Allegato")
         case .location: return "Posizione"
         case .sos: return "SOS"
         default: return last.kind

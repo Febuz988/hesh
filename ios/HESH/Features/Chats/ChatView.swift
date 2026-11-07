@@ -10,6 +10,7 @@ struct ChatView: View {
     @State private var draft = ""
     @State private var observer: DatabaseCancellable?
     @State private var error: String?
+    @State private var showAttach = false
 
     private var me: String { Keychain.string(for: .username) ?? "" }
 
@@ -53,6 +54,9 @@ struct ChatView: View {
             }
         }
         .onAppear { observe(); markRead() }
+        .sheet(isPresented: $showAttach) {
+            AttachmentSheet(chat: chat) { content in try await MessageService.shared.send(content) }
+        }
         .alert("Errore", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button("OK") {}
         } message: { Text(error ?? "") }
@@ -60,7 +64,7 @@ struct ChatView: View {
 
     private var composer: some View {
         HStack(spacing: 8) {
-            Button { } label: { Image(systemName: "plus") }
+            Button { showAttach = true } label: { Image(systemName: "plus") }
                 .frame(width: 44, height: 44)
                 .background(Circle().fill(Color.primary.opacity(0.06)).overlay(Circle().strokeBorder(Color.primary.opacity(0.14))))
             TextField(chat.isGroup ? "Messaggio al gruppo" : "Messaggio", text: $draft, axis: .vertical)
@@ -131,6 +135,8 @@ struct Bubble: View {
                         .font(.system(size: 15, weight: .bold)).foregroundStyle(Color.heshInk)
                         .padding(.horizontal, 14).padding(.vertical, 10)
                         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Theme.danger))
+                } else if message.content?.kind == .attachment, let c = message.content {
+                    AttachmentBubble(content: c, mine: mine)
                 } else if let event = systemLine {
                     Label(event.text, systemImage: event.icon)
                         .font(.system(size: 13, weight: .medium)).foregroundStyle(Color.heshMuted(scheme))
