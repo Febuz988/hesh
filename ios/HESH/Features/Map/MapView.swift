@@ -167,6 +167,7 @@ struct PlacesView: View {
     @Environment(Theme.self) private var theme
     @State private var location = LocationService.shared
     @State private var places: [Place] = []
+    @State private var placesObserver: DatabaseCancellable?
     @State private var name = ""
     @State private var radius: Double = 200
     @State private var center: CLLocationCoordinate2D?
@@ -230,8 +231,9 @@ struct PlacesView: View {
             .navigationTitle("Luoghi")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fine") { dismiss() } } }
-            .task {
-                do { for try await list in ValueObservation.tracking({ db in try Place.fetchAll(db) }).values(in: Database.shared.pool) { places = list } } catch {}
+            .onAppear {
+                placesObserver = ValueObservation.tracking { db in try Place.fetchAll(db) }
+                    .start(in: Database.shared.pool, scheduling: .immediate, onError: { _ in }, onChange: { places = $0 })
             }
         }
     }
