@@ -13,8 +13,10 @@ def _get_client():
     if _client is None and settings.apns_enabled:
         from aioapns import APNs
 
+        with open(settings.apns_key_path, encoding="utf-8") as f:
+            key_pem = f.read()
         _client = APNs(
-            key=settings.apns_key_path,
+            key=key_pem,
             key_id=settings.apns_key_id,
             team_id=settings.apns_team_id,
             topic=settings.apns_topic,
