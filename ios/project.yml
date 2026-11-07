@@ -30,10 +30,16 @@ targets:
     type: framework
     platform: iOS
     sources: [HESHShared/Sources]
+    info:
+      path: HESHShared/Info.plist
+      properties:
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: it.hesh.app.shared
         APPLICATION_EXTENSION_API_ONLY: YES
+        GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - package: LibSignalClient
       - package: LibSignalFfi
