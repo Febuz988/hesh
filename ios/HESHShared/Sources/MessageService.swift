@@ -72,10 +72,16 @@ public actor MessageService {
     public func drainQueue() async throws -> [Content] {
         let envs = try await api.fetchEnvelopes()
         var applied: [Content] = []
+        var done: [String] = []
         for e in envs {
-            if let c = try? await handle(e) { applied.append(c) }
+            do {
+                applied.append(try await handle(e))
+                done.append(e.id)
+            } catch {
+                Diagnostics.record("busta da \(e.fromUsername) tipo \(e.msgType): \(error)")
+            }
         }
-        try await api.ack(envs.map(\.id))
+        try await api.ack(done)
         return applied
     }
 

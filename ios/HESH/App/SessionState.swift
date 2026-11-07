@@ -17,8 +17,12 @@ final class SessionState {
         Task {
             _ = try? await MessageService.shared.drainQueue()
             await WSClient.shared.start { env in
-                _ = try? await MessageService.shared.handle(env)
-                await WSClient.shared.ack([env.id])
+                do {
+                    _ = try await MessageService.shared.handle(env)
+                    await WSClient.shared.ack([env.id])
+                } catch {
+                    Diagnostics.record("busta da \(env.fromUsername) tipo \(env.msgType): \(error)")
+                }
             }
             await MessageService.shared.replenishPrekeysIfNeeded()
             try? await MessageService.shared.purgeExpired()

@@ -9,12 +9,21 @@ struct ChatsView: View {
     @State private var search = ""
     @State private var showNew = false
     @State private var observer: DatabaseCancellable?
+    @State private var lastError: String? = Diagnostics.lastError
 
     var body: some View {
         NavigationStack {
             ZStack {
                 HESHBackground()
                 List {
+                    if let err = lastError {
+                        Text(err)
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(Theme.danger)
+                            .textSelection(.enabled)
+                            .listRowBackground(Color.clear)
+                            .swipeActions { Button("Chiudi") { Diagnostics.clear(); lastError = nil } }
+                    }
                     ForEach(filtered) { chat in
                         NavigationLink(value: chat) { ChatRow(chat: chat) }
                             .listRowBackground(Color.clear)
@@ -42,6 +51,9 @@ struct ChatsView: View {
             .navigationDestination(for: Chat.self) { ChatView(chat: $0) }
             .sheet(isPresented: $showNew) { NewChatView() }
             .onAppear(perform: observe)
+            .task {
+                while !Task.isCancelled { lastError = Diagnostics.lastError; try? await Task.sleep(for: .seconds(2)) }
+            }
         }
     }
 
