@@ -168,6 +168,15 @@ public actor CryptoService {
         return skdm.serialize()
     }
 
+    /// Nuova sender key per il gruppo (dopo uscita o rimozione di un membro).
+    public func rotateSenderKey(for groupId: UUID) throws {
+        try store.deleteSenderKey(from: try localAddress(), distributionId: groupId)
+    }
+
+    public func forgetSenderKey(of username: String, deviceId: UInt32 = 1, groupId: UUID) throws {
+        try store.deleteSenderKey(from: try ProtocolAddress(name: username, deviceId: deviceId), distributionId: groupId)
+    }
+
     public func processSenderKeyDistribution(_ data: Data, from username: String, deviceId: UInt32) throws {
         let sender = try ProtocolAddress(name: username, deviceId: deviceId)
         let skdm = try SenderKeyDistributionMessage(bytes: data)

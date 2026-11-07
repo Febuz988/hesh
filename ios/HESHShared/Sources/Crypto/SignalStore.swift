@@ -170,6 +170,12 @@ public final class SignalStore: IdentityKeyStore, PreKeyStore, SignedPreKeyStore
         }
     }
 
+    public func deleteSenderKey(from sender: ProtocolAddress, distributionId: UUID) throws {
+        try db.write { db in
+            try db.execute(sql: "DELETE FROM signal_sender_key WHERE key = ?", arguments: ["\(Self.key(sender))/\(distributionId.uuidString)"])
+        }
+    }
+
     public func loadSenderKey(from sender: ProtocolAddress, distributionId: UUID, context: StoreContext) throws -> SenderKeyRecord? {
         try db.read { db in
             try Data.fetchOne(db, sql: "SELECT record FROM signal_sender_key WHERE key = ?", arguments: ["\(Self.key(sender))/\(distributionId.uuidString)"])

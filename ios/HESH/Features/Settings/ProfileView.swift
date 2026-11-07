@@ -1,5 +1,18 @@
+import GRDB
 import HESHShared
 import SwiftUI
+
+struct MyAvatar: View {
+    var size: CGFloat = 40
+    @Environment(SessionState.self) private var session
+    var body: some View {
+        if let path = UserDefaults(suiteName: HESHConfig.appGroup)?.string(forKey: "profile.avatarPath"), let img = UIImage(contentsOfFile: path) {
+            Image(uiImage: img).resizable().scaledToFill().frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: size * 0.34, style: .continuous))
+        } else {
+            Avatar(name: session.username ?? "?", size: size)
+        }
+    }
+}
 
 struct ProfileView: View {
     @Environment(SessionState.self) private var session
@@ -7,6 +20,8 @@ struct ProfileView: View {
     @Environment(\.colorScheme) private var scheme
     @State private var fingerprint = ""
     @State private var confirmDelete = false
+    @State private var pendingRequests = 0
+    @State private var observer: DatabaseCancellable?
 
     var body: some View {
         NavigationStack {
@@ -15,7 +30,7 @@ struct ProfileView: View {
                 List {
                     Section {
                         VStack(spacing: 10) {
-                            Avatar(name: session.username ?? "?", size: 96)
+                            MyAvatar(size: 96)
                             Text("@\(session.username ?? "")").font(.system(size: 24, weight: .bold, design: .rounded))
                             Label(fingerprint, systemImage: "lock.fill").font(.system(size: 11, design: .monospaced)).foregroundStyle(Color.heshMuted(scheme))
                         }
@@ -23,8 +38,14 @@ struct ProfileView: View {
                         .listRowBackground(Color.clear)
                     }
                     Section("Impostazioni") {
+                        NavigationLink { ProfileEditView() } label: { Label("Profilo e compleanno", systemImage: "person.crop.circle") }
+                        NavigationLink { ContactsView() } label: {
+                            HStack { Label("Contatti e richieste", systemImage: "person.2"); Spacer()
+                                if pendingRequests > 0 { Text("\(pendingRequests)").font(.system(size: 12, weight: .bold)).foregroundStyle(Color.heshInk).padding(.horizontal, 7).frame(minHeight: 22).background(Capsule().fill(theme.accent)) } }
+                        }
                         NavigationLink { InvitesView() } label: { Label("Inviti", systemImage: "qrcode") }
                         NavigationLink { DevicesView() } label: { Label("Dispositivi collegati", systemImage: "laptopcomputer.and.iphone") }
+                        NavigationLink { NotificationSettingsView() } label: { Label("Notifiche e suoni", systemImage: "bell") }
                         NavigationLink { ThemesView() } label: { Label("Aspetto e temi", systemImage: "circle.lefthalf.filled") }
                     }
                     Section {
@@ -36,6 +57,10 @@ struct ProfileView: View {
             }
             .navigationTitle("Io")
             .task { fingerprint = (try? await CryptoService.shared.localIdentityFingerprint()) ?? "" }
+            .onAppear {
+                observer = ValueObservation.tracking { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM contact WHERE status = 'pending_in'") ?? 0 }
+                    .start(in: Database.shared.pool, scheduling: .immediate, onError: { _ in }, onChange: { pendingRequests = $0 })
+            }
             .confirmationDialog("Eliminare l'account? L'azione è definitiva. I messaggi già consegnati restano sui dispositivi degli altri.", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Elimina definitivamente", role: .destructive) {
                     Task { try? await APIClient.shared.deleteAccount(); await MainActor.run { session.logout() } }

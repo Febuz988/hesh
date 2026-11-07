@@ -73,10 +73,11 @@ struct ChatRow: View {
     @Environment(Theme.self) private var theme
     @Environment(\.colorScheme) private var scheme
     @State private var last: Message?
+    @State private var contact: Contact?
 
     var body: some View {
         HStack(spacing: 14) {
-            Avatar(name: chat.title, isGroup: chat.isGroup, size: 52)
+            if chat.isGroup { Avatar(name: chat.title, isGroup: true, size: 52) } else { ContactAvatar(contact: contact ?? Contact(username: chat.title), size: 52) }
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     HStack(spacing: 6) {
@@ -105,6 +106,7 @@ struct ChatRow: View {
             last = try? await Database.shared.pool.read { db in
                 try Message.filter(Column("chat_id") == chat.id).order(Column("ts").desc).fetchOne(db)
             }
+            if let u = chat.dmUsername { contact = try? await Database.shared.pool.read { db in try Contact.fetchOne(db, key: u) } }
         }
     }
 

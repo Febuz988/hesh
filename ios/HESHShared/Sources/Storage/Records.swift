@@ -13,11 +13,23 @@ public struct Chat: Codable, FetchableRecord, PersistableRecord, Identifiable, S
     public var membersJson: String = "[]"
     public var lastActivity: Date?
     public var unread: Int = 0
+    public var owner: String?
+    public var adminsJson: String = "[]"
 
     enum CodingKeys: String, CodingKey {
         case id, title, isGroup = "is_group", isSecret = "is_secret", ephemeralS = "ephemeral_s", muted
         case isFamily = "is_family", membersJson = "members_json", lastActivity = "last_activity", unread
+        case owner, adminsJson = "admins_json"
     }
+
+    public var admins: [String] {
+        get { (try? JSONDecoder().decode([String].self, from: Data(adminsJson.utf8))) ?? [] }
+        set { adminsJson = String(data: (try? JSONEncoder().encode(newValue)) ?? Data("[]".utf8), encoding: .utf8) ?? "[]" }
+    }
+    public func role(of user: String) -> String {
+        user == owner ? "Proprietario" : admins.contains(user) ? "Amministratore" : "Membro"
+    }
+    public func canManage(_ user: String) -> Bool { user == owner || admins.contains(user) }
 
     public var members: [String] {
         get { (try? JSONDecoder().decode([String].self, from: Data(membersJson.utf8))) ?? [] }
@@ -77,11 +89,13 @@ public struct Contact: Codable, FetchableRecord, PersistableRecord, Identifiable
     public var verified: Bool = false
     public var blocked: Bool = false
     public var keyChanged: Bool = false
+    public var status: String = "none"
+    public var birthday: String?
     public var id: String { username }
-    public init(username: String) { self.username = username }
+    public init(username: String, status: String = "none") { self.username = username; self.status = status }
 
     enum CodingKeys: String, CodingKey {
-        case username, displayName = "display_name", profileKey = "profile_key", avatarPath = "avatar_path", verified, blocked, keyChanged = "key_changed"
+        case username, displayName = "display_name", profileKey = "profile_key", avatarPath = "avatar_path", verified, blocked, keyChanged = "key_changed", status, birthday
     }
 }
 

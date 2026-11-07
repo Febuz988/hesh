@@ -138,6 +138,7 @@ public actor MessageService {
     }
 
     private func apply(_ c: Content, from sender: String, deviceId: UInt32) async throws {
+        if await SocialService.shared.isBlocked(sender), c.kind != .contactRequest { return }
         switch c.kind {
         case .senderKey:
             if let d = c.distribution, let data = Data(base64Encoded: d) {
@@ -179,19 +180,17 @@ public actor MessageService {
             }
             try await storeIncoming(c, from: sender)
         case .groupCreate, .groupUpdate:
-            try await upsertGroup(c)
-            if c.kind == .groupCreate {
+            try await upsertGroup(c, from: sender)
+            if c.kind == .groupCreate || (c.members?.contains(me) == true && c.kind == .groupUpdate) {
                 // Il nuovo gruppo ha bisogno della nostra sender key verso gli altri.
                 if let chat = try await db.read({ db in try Chat.fetchOne(db, key: c.chat) }) {
                     try? await distributeSenderKey(for: chat)
                 }
             }
         case .profile:
-            try await db.write { db in
-                var contact = try Contact.fetchOne(db, key: sender) ?? Contact(username: sender)
-                contact.profileKey = c.profileKey.flatMap { Data(base64Encoded: $0) }
-                try contact.save(db)
-            }
+            await SocialService.shared.applyIncomingProfile(c, from: sender)
+        case .contactRequest, .contactAccept, .contactBlock:
+            await SocialService.shared.applyIncomingContact(c, from: sender)
         case .secretStart, .secretUpdate:
             try await db.write { db in
                 var chat = try Chat.fetchOne(db, key: c.chat) ?? Chat.dm(sender)
@@ -216,13 +215,28 @@ public actor MessageService {
         }
     }
 
-    private func upsertGroup(_ c: Content) async throws {
+    private func upsertGroup(_ c: Content, from sender: String) async throws {
+        let me = self.me
+        if let m = c.members, !m.contains(me) {
+            // Sono stato rimosso o ho lasciato: la chat sparisce, le chiavi del gruppo pure.
+            if let gid = c.groupId.flatMap(UUID.init(uuidString:)) { for u in m { try? await crypto.forgetSenderKey(of: u, groupId: gid) } }
+            try await db.write { db in try db.execute(sql: "DELETE FROM chat WHERE id = ?", arguments: [c.chat]) }
+            return
+        }
+        let previous = try await db.read { db in try Chat.fetchOne(db, key: c.chat) }
         try await db.write { db in
-            var chat = try Chat.fetchOne(db, key: c.chat) ?? Chat(id: c.chat, title: c.name ?? "Gruppo", isGroup: true)
+            var chat = previous ?? Chat(id: c.chat, title: c.name ?? "Gruppo", isGroup: true)
             if let n = c.name { chat.title = n }
             if let m = c.members { chat.members = m }
-            if let e = c.ephemeralS { chat.ephemeralS = e }
+            chat.ephemeralS = c.ephemeralS
+            if c.kind == .groupCreate { chat.owner = sender }
+            if let o = c.scope { chat.owner = o }
+            if let a = c.ids { chat.admins = a }
             try chat.save(db)
+        }
+        // Un membro e' uscito: la sua sender key non vale piu'.
+        if let prev = previous, let m = c.members, let gid = c.groupId.flatMap(UUID.init(uuidString:)) {
+            for gone in Set(prev.members).subtracting(m) { try? await crypto.forgetSenderKey(of: gone, groupId: gid) }
         }
     }
 
@@ -233,12 +247,14 @@ public actor MessageService {
         var chat = Chat(id: "g:\(gid.uuidString)", title: name, isGroup: true)
         chat.members = Array(Set(members + [me]))
         chat.isFamily = family
+        chat.owner = me
         let newChat = chat
         try await db.write { db in try newChat.save(db) }
         var c = Content(kind: .groupCreate, chat: chat.id)
         c.groupId = gid.uuidString
         c.name = name
         c.members = chat.members
+        c.scope = me
         let plain = try c.encoded()
         var envelopes: [EnvelopeOut] = []
         for m in chat.members where m != me {

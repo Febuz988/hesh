@@ -61,9 +61,14 @@ struct NewChatView: View {
         do {
             if mode == 0 {
                 let u = username.lowercased().trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "@", with: "")
-                _ = try await APIClient.shared.lookup(username: u)
-                try await CryptoService.shared.ensureSession(with: u)
-                try await Database.shared.pool.write { db in try Chat.dm(u).save(db) }
+                let status = try await Database.shared.pool.read { db in try Contact.fetchOne(db, key: u)?.status } ?? "none"
+                if status == "accepted" {
+                    try await Database.shared.pool.write { db in if try Chat.fetchOne(db, key: "dm:\(u)") == nil { try Chat.dm(u).save(db) } }
+                } else {
+                    try await SocialService.shared.requestContact(u)
+                    error = "Richiesta inviata a \(u): la chat si apre quando accetta."
+                    return
+                }
             } else {
                 let list = members.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased().replacingOccurrences(of: "@", with: "") }.filter { !$0.isEmpty }
                 guard !list.isEmpty else { error = "Aggiungi almeno un membro"; return }
@@ -93,7 +98,11 @@ struct ChatInfoView: View {
         ZStack {
             HESHBackground()
             List {
-                Section("Membri") { ForEach(chat.members, id: \.self) { Text($0) } }
+                if chat.isGroup {
+                    GroupMembersSection(chat: chat)
+                } else {
+                    Section("Membri") { ForEach(chat.members, id: \.self) { Text($0) } }
+                }
                 Section("Sicurezza") {
                     if let u = chat.dmUsername { NavigationLink("Verifica codice di sicurezza") { VerifyView(username: u) } }
                     if !chat.isGroup {
@@ -159,5 +168,78 @@ struct VerifyView: View {
                 theirs = CryptoService.fingerprint(d)
             }
         }
+    }
+}
+
+
+struct GroupMembersSection: View {
+    let chat: Chat
+    @Environment(Theme.self) private var theme
+    @Environment(\.dismiss) private var dismiss
+    @State private var newMember = ""
+    @State private var newName = ""
+    @State private var error: String?
+    @State private var confirmLeave = false
+    private var me: String { Keychain.string(for: .username) ?? "" }
+    private var canManage: Bool { chat.canManage(me) }
+
+    var body: some View {
+        Section("Gruppo") {
+            if canManage {
+                HStack {
+                    TextField("Rinomina", text: $newName)
+                    Button("Salva") { Task { await run { try await SocialService.shared.updateGroup(chat, name: newName) }; newName = "" } }
+                        .disabled(newName.isEmpty).foregroundStyle(theme.accent)
+                }
+                Toggle(isOn: Binding(get: { chat.isFamily }, set: { v in Task { await run { try await SocialService.shared.updateGroup(chat, family: v) } } })) {
+                    Label("Cerchio familiare e destinatario SOS", systemImage: "exclamationmark.triangle")
+                }.tint(theme.accent)
+            }
+        }
+        Section("Membri · \(chat.members.count)") {
+            ForEach(chat.members.sorted(), id: \.self) { m in
+                HStack {
+                    Avatar(name: m, size: 32)
+                    VStack(alignment: .leading) {
+                        Text(m == me ? "\(m) (tu)" : m).font(.system(size: 15, weight: .semibold))
+                        Text(chat.role(of: m)).font(.system(size: 12)).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if canManage, m != me, m != chat.owner {
+                        Menu {
+                            Button(chat.admins.contains(m) ? "Rimuovi da amministratore" : "Rendi amministratore") {
+                                Task { await run { try await SocialService.shared.updateGroup(chat, setAdmin: (m, !chat.admins.contains(m))) } }
+                            }
+                            Button("Rimuovi dal gruppo", role: .destructive) {
+                                Task { await run { try await SocialService.shared.updateGroup(chat, removeMembers: [m]) } }
+                            }
+                        } label: { Image(systemName: "ellipsis.circle") }
+                    }
+                }
+            }
+            if canManage {
+                HStack {
+                    TextField("@nomeutente da aggiungere", text: $newMember).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    Button("Aggiungi") {
+                        let u = newMember.lowercased().trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "@", with: "")
+                        Task { await run { _ = try await APIClient.shared.lookup(username: u); try await SocialService.shared.updateGroup(chat, addMembers: [u]) }; newMember = "" }
+                    }
+                    .disabled(newMember.isEmpty).foregroundStyle(theme.accent)
+                }
+            }
+            if let error { Text(error).font(.system(size: 12)).foregroundStyle(Theme.danger) }
+        }
+        Section {
+            Button("Esci dal gruppo", role: .destructive) { confirmLeave = true }
+                .confirmationDialog("Uscire dal gruppo? Non leggerai piu' i nuovi messaggi.", isPresented: $confirmLeave, titleVisibility: .visible) {
+                    Button("Esci", role: .destructive) { Task { await run { try await SocialService.shared.leaveGroup(chat) }; dismiss() } }
+                }
+        } footer: {
+            Text("Ogni cambio di membri rigenera le chiavi del gruppo: chi esce non decifra piu' nulla, chi entra non vede la cronologia.")
+        }
+    }
+
+    private func run(_ op: () async throws -> Void) async {
+        do { try await op(); error = nil } catch { self.error = error.localizedDescription }
     }
 }

@@ -119,6 +119,16 @@ public final class Database: Sendable {
                 t.column("battery", .double)
             }
         }
+        m.registerMigration("v2") { db in
+            try db.alter(table: "contact") { t in
+                t.add(column: "status", .text).notNull().defaults(to: "none")   // none|pending_in|pending_out|accepted
+                t.add(column: "birthday", .text)
+            }
+            try db.alter(table: "chat") { t in
+                t.add(column: "owner", .text)
+                t.add(column: "admins_json", .text).notNull().defaults(to: "[]")
+            }
+        }
         return m
     }
 }
