@@ -23,6 +23,18 @@ public struct RegisterRequest: Codable, Sendable {
     public var kyberPrekeySignature: String?
     public var oneTimePrekeys: [PreKeyIn]
     public var apnsToken: String?
+
+    public init(inviteToken: String, username: String, deviceName: String, identityKey: String, registrationId: UInt32,
+                signedPrekeyId: UInt32, signedPrekey: String, signedPrekeySignature: String,
+                kyberPrekeyId: UInt32?, kyberPrekey: String?, kyberPrekeySignature: String?,
+                oneTimePrekeys: [PreKeyIn], apnsToken: String?) {
+        self.inviteToken = inviteToken; self.username = username; self.deviceName = deviceName
+        self.identityKey = identityKey; self.registrationId = registrationId
+        self.signedPrekeyId = signedPrekeyId; self.signedPrekey = signedPrekey; self.signedPrekeySignature = signedPrekeySignature
+        self.kyberPrekeyId = kyberPrekeyId; self.kyberPrekey = kyberPrekey; self.kyberPrekeySignature = kyberPrekeySignature
+        self.oneTimePrekeys = oneTimePrekeys; self.apnsToken = apnsToken
+    }
+
     enum CodingKeys: String, CodingKey {
         case inviteToken = "invite_token", username, deviceName = "device_name"
         case identityKey = "identity_key", registrationId = "registration_id"
