@@ -223,7 +223,14 @@ struct Bubble: View {
         case .sosResolved: return ("\(mine ? "Hai comunicato" : message.sender + " ha comunicato") che l'emergenza è rientrata", "checkmark.shield")
         case .checkin: return ("\(mine ? "Sei arrivato" : message.sender + " è arrivato")\(c.place.map { " a \($0)" } ?? "")", "figure.walk.arrival")
         case .geofence: return ("\(mine ? "Sei" : message.sender + " è") \(c.event == "enter" ? "arrivato a" : "uscito da") \(c.place ?? "")", "mappin.and.ellipse")
-        case .location: return c.liveUntilTs == 0 ? ("\(who) smesso di condividere la posizione", "location.slash") : ("\(mine ? "Stai condividendo" : message.sender + " condivide") la posizione", "location.fill")
+        case .location:
+            if c.liveUntilTs == 0 { return ("\(mine ? "Hai smesso" : message.sender + " ha smesso") di condividere la posizione", "location.slash") }
+            if c.event == "travel" { return ("\(mine ? "Sei" : message.sender + " è") in modalità viaggio: posizione condivisa fino allo stop", "car") }
+            if c.event == "start", let u = c.liveUntilTs {
+                let min = max(1, Int((Double(u) / 1000 - Double(c.ts) / 1000) / 60))
+                return ("\(mine ? "Stai condividendo" : message.sender + " condivide") la posizione per \(min) min", "location.fill")
+            }
+            return ("\(mine ? "Hai inviato" : message.sender + " ha inviato") la posizione", "mappin")
         case .groupCreate, .groupUpdate, .senderKey: return ("Gruppo aggiornato", "person.2")
         default: return nil
         }

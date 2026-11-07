@@ -96,7 +96,7 @@ public struct Content: Codable, Sendable {
     public var isStoredMessage: Bool {
         switch kind {
         case .text, .attachment, .sos, .sosResolved, .geofence, .checkin: return true
-        case .location: return liveUntilTs == nil   // un punto singolo si', il tracciamento live no
+        case .location: return liveUntilTs == nil || event != nil   // punto singolo o avvio/stop: si'; aggiornamenti live: no
         default: return false
         }
     }

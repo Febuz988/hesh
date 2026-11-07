@@ -163,11 +163,12 @@ public actor MessageService {
                                          liveUntil: c.liveUntilTs.map { Date(timeIntervalSince1970: TimeInterval($0) / 1000) },
                                          battery: c.battery)
                 try await db.write { db in try loc.save(db) }
-                if c.kind == .location, c.liveUntilTs == nil { try await storeIncoming(c, from: sender) }
+                if c.kind == .location, c.liveUntilTs == nil || c.event != nil { try await storeIncoming(c, from: sender) }
             } else if c.liveUntilTs == 0 {
                 try await db.write { db in
                     try db.execute(sql: "UPDATE member_location SET live_until = NULL WHERE username = ?", arguments: [sender])
                 }
+                if c.event != nil { try await storeIncoming(c, from: sender) }
             }
             if c.kind == .sos { try await storeIncoming(c, from: sender) }
         case .geofence, .checkin:

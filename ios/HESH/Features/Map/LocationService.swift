@@ -55,13 +55,13 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     func share(for duration: TimeInterval) {
         sharingUntil = Date().addingTimeInterval(duration)
         startUpdates()
-        Task { await sendNow(force: true) }
+        Task { await sendNow(force: true, event: "start") }
     }
 
     func startTravelMode() {
         travelMode = true
         startUpdates()
-        Task { await sendNow(force: true) }
+        Task { await sendNow(force: true, event: "start") }
     }
 
     func stopSharing() {
@@ -95,23 +95,32 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
 
     /// Invia al gruppo famiglia ogni 60 s o 100 m.
-    private func sendNow(force: Bool) async {
-        guard let l = current, let family = await familyChat() else { return }
+    private var pendingStartEvent = false
+
+    private func sendNow(force: Bool, event: String? = nil) async {
+        guard let family = await familyChat() else { Diagnostics.record("posizione: nessun gruppo segnato come cerchio familiare"); return }
+        if event == "start" { pendingStartEvent = true }
+        guard let l = current else {
+            if authorization == .denied || authorization == .restricted { Diagnostics.record("posizione: permesso negato in Impostazioni") }
+            return  // arrivera' da didUpdateLocations
+        }
         let moved = lastSent.map { $0.distance(from: l) } ?? .infinity
-        guard force || moved > 100 || Date().timeIntervalSince(lastSentAt) > 60 else { return }
+        guard force || pendingStartEvent || moved > 100 || Date().timeIntervalSince(lastSentAt) > 60 else { return }
         if let until = sharingUntil, until < Date(), !travelMode { stopSharing(); return }
         lastSent = l; lastSentAt = Date()
         UIDevice.current.isBatteryMonitoringEnabled = true
         let battery = UIDevice.current.batteryLevel >= 0 ? Double(UIDevice.current.batteryLevel) : nil
-        let c = Content.location(chat: family.id, lat: l.coordinate.latitude, lon: l.coordinate.longitude,
+        var c = Content.location(chat: family.id, lat: l.coordinate.latitude, lon: l.coordinate.longitude,
                                  accM: l.horizontalAccuracy, liveUntil: travelMode ? Date().addingTimeInterval(8 * 3600) : sharingUntil, battery: battery)
-        try? await MessageService.shared.send(c)
+        if pendingStartEvent { c.event = travelMode ? "travel" : "start"; pendingStartEvent = false }
+        do { try await MessageService.shared.send(c) } catch { Diagnostics.record("posizione: invio fallito: \(error)") }
     }
 
     private func sendStop() async {
         guard let family = await familyChat() else { return }
         var c = Content(kind: .location, chat: family.id)
         c.liveUntilTs = 0
+        c.event = "stop"
         try? await MessageService.shared.send(c)
     }
 
