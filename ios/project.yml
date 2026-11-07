@@ -54,6 +54,8 @@ targets:
       properties:
         CFBundleDisplayName: HESH
         UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         ITSAppUsesNonExemptEncryption: true
         NSCameraUsageDescription: "Serve solo per leggere il QR di invito e per scattare foto da inviare."
         NSMicrophoneUsageDescription: "Per registrare messaggi vocali e chiamate. Un indicatore rosso mostra quando stai registrando."
