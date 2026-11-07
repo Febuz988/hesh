@@ -92,6 +92,15 @@ public struct Content: Codable, Sendable {
 
     public var isSOS: Bool { kind == .sos }
 
+    /// Kind che diventano righe visibili in chat. Gli altri sono controllo.
+    public var isStoredMessage: Bool {
+        switch kind {
+        case .text, .attachment, .sos, .sosResolved, .geofence, .checkin: return true
+        case .location: return liveUntilTs == nil   // un punto singolo si', il tracciamento live no
+        default: return false
+        }
+    }
+
     public func encoded() throws -> Data { try JSONEncoder().encode(self) }
     public static func decode(_ data: Data) throws -> Content { try JSONDecoder().decode(Content.self, from: data) }
 }

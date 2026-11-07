@@ -1,5 +1,6 @@
 import GRDB
 import HESHShared
+import LocalAuthentication
 import SwiftUI
 
 struct ChatView: View {
@@ -11,13 +12,37 @@ struct ChatView: View {
     @State private var observer: DatabaseCancellable?
     @State private var error: String?
     @State private var showAttach = false
+    @State private var unlocked = false
+    @State private var liveChat: Chat
+
+    init(chat: Chat) {
+        self.chat = chat
+        _liveChat = State(initialValue: chat)
+    }
 
     private var me: String { Keychain.string(for: .username) ?? "" }
 
     var body: some View {
         ZStack {
             HESHBackground()
+            if liveChat.isSecret && !unlocked {
+                VStack(spacing: 14) {
+                    Image(systemName: "lock.shield").font(.system(size: 40, weight: .light)).foregroundStyle(theme.accent)
+                    Text("Chat segreta").font(.system(size: 20, weight: .bold, design: .rounded))
+                    Button("Sblocca") { unlock() }.buttonStyle(PillButtonStyle()).frame(width: 200)
+                }
+            } else {
             VStack(spacing: 0) {
+                if liveChat.isSecret {
+                    HStack(spacing: 8) {
+                        Image(systemName: "lock.fill").font(.system(size: 11))
+                        Text("Chat segreta" + (liveChat.ephemeralS.map { " · messaggi \(MessageService.label(seconds: $0))" } ?? ""))
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(Theme.Original.ice.color)
+                    .frame(maxWidth: .infinity).padding(.vertical, 6)
+                    .background(Theme.Original.ice.color.opacity(0.12))
+                }
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 10) {
@@ -45,17 +70,24 @@ struct ChatView: View {
                 }
                 composer
             }
+            }
         }
         .navigationTitle(chat.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { ChatInfoView(chat: chat) } label: { Image(systemName: "info.circle") }
+                NavigationLink { ChatInfoView(chat: liveChat) } label: { Image(systemName: liveChat.isSecret ? "lock.circle" : "info.circle") }
             }
         }
-        .onAppear { observe(); markRead() }
+        .onAppear { observe(); markRead(); if liveChat.isSecret { unlock() } else { unlocked = true } }
+        .task {
+            while !Task.isCancelled {
+                try? await MessageService.shared.purgeExpired()
+                try? await Task.sleep(for: .seconds(15))
+            }
+        }
         .sheet(isPresented: $showAttach) {
-            AttachmentSheet(chat: chat) { content in try await MessageService.shared.send(content) }
+            AttachmentSheet(chat: liveChat) { content in try await MessageService.shared.send(content) }
         }
         .alert("Errore", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button("OK") {}
@@ -84,8 +116,15 @@ struct ChatView: View {
 
     private func observe() {
         observer = ValueObservation
-            .tracking { db in try Message.filter(Column("chat_id") == chat.id).order(Column("ts")).fetchAll(db) }
-            .start(in: Database.shared.pool, scheduling: .immediate, onError: { _ in }, onChange: { messages = $0 })
+            .tracking { db in
+                (try Message.filter(Column("chat_id") == chat.id).order(Column("ts")).fetchAll(db),
+                 try Chat.fetchOne(db, key: chat.id))
+            }
+            .start(in: Database.shared.pool, scheduling: .immediate, onError: { _ in }, onChange: { pair in
+                messages = pair.0
+                if let c = pair.1 { liveChat = c }
+                markRead()
+            })
     }
 
     private func markRead() {
@@ -93,6 +132,16 @@ struct ChatView: View {
             try? await Database.shared.pool.write { db in
                 try db.execute(sql: "UPDATE chat SET unread = 0 WHERE id = ?", arguments: [chat.id])
             }
+            await MessageService.shared.sendReadReceipts(chat: chat.id)
+        }
+    }
+
+    private func unlock() {
+        let ctx = LAContext()
+        var err: NSError?
+        guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &err) else { unlocked = true; return }
+        ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Apri la chat segreta") { ok, _ in
+            Task { @MainActor in unlocked = ok }
         }
     }
 
@@ -100,7 +149,7 @@ struct ChatView: View {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         draft = ""
-        do { try await MessageService.shared.send(.text(text, chat: chat.id, ephemeralS: chat.ephemeralS)) }
+        do { try await MessageService.shared.send(.text(text, chat: chat.id, ephemeralS: liveChat.ephemeralS)) }
         catch { self.error = error.localizedDescription }
     }
 
@@ -159,7 +208,7 @@ struct Bubble: View {
                     Image(systemName: message.status == "read" ? "checkmark.circle.fill" : message.status == "failed" ? "exclamationmark.circle" : "checkmark")
                         .foregroundStyle(message.status == "failed" ? Theme.danger : (message.status == "read" ? theme.accent : Color.heshMuted(scheme)))
                 }
-                if message.expiresAt != nil { Image(systemName: "timer") }
+                if let e = message.expiresAt { Image(systemName: "timer"); Text(e, style: .relative) }
             }
             .font(.system(size: 11)).foregroundStyle(Color.heshMuted(scheme)).padding(.horizontal, 6)
         }

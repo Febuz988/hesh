@@ -23,8 +23,10 @@ struct QRScannerView: UIViewControllerRepresentable {
         func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
             guard !fired, let obj = metadataObjects.first as? AVMetadataMachineReadableCodeObject, obj.type == .qr, let s = obj.stringValue else { return }
             fired = true
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-            onCode(s)
+            MainActor.assumeIsolated {
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                onCode(s)
+            }
         }
     }
 }
@@ -61,7 +63,8 @@ final class ScannerController: UIViewController {
             frame.widthAnchor.constraint(equalToConstant: 250),
             frame.heightAnchor.constraint(equalToConstant: 250),
         ])
-        DispatchQueue.global(qos: .userInitiated).async { [session] in session.startRunning() }
+        let s = session
+        DispatchQueue.global(qos: .userInitiated).async { s.startRunning() }
     }
 
     override func viewDidLayoutSubviews() {

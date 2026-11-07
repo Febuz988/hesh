@@ -15,7 +15,7 @@ struct SOSView: View {
     @State private var sent: Message?
     @State private var error: String?
     @State private var location = LocationSnapshot()
-    @State private var timer: Timer?
+    @State private var holdTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -105,23 +105,26 @@ struct SOSView: View {
         holding = true
         progress = 0
         let start = Date()
-        var lastTick = 0
-        timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { t in
-            let elapsed = Date().timeIntervalSince(start)
-            progress = min(1, elapsed / 3)
-            let tick = Int(elapsed)
-            if tick != lastTick { lastTick = tick; UIImpactFeedbackGenerator(style: .heavy).impactOccurred() }
-            if elapsed >= 3 {
-                t.invalidate()
-                holding = false
-                UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                Task { await fire() }
+        holdTask = Task { @MainActor in
+            var lastTick = 0
+            while !Task.isCancelled {
+                let elapsed = Date().timeIntervalSince(start)
+                progress = min(1, elapsed / 3)
+                let tick = Int(elapsed)
+                if tick != lastTick { lastTick = tick; UIImpactFeedbackGenerator(style: .heavy).impactOccurred() }
+                if elapsed >= 3 {
+                    holding = false
+                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                    await fire()
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(50))
             }
         }
     }
 
     private func endHold() {
-        timer?.invalidate()
+        holdTask?.cancel()
         if holding { holding = false; progress = 0 }
     }
 
@@ -139,7 +142,7 @@ struct SOSView: View {
         guard let family else { return }
         var c = Content(kind: .sosResolved, chat: family.id)
         c.sosId = sos.id
-        try? await MessageService.shared.send(c)
+        _ = try? await MessageService.shared.send(c)
         sent = nil
     }
 }

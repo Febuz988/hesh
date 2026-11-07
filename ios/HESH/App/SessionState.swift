@@ -5,6 +5,7 @@ import UserNotifications
 
 /// Stato globale: loggato o no, invito in arrivo, avvio dei servizi.
 @Observable
+@MainActor
 final class SessionState {
     var username: String? = Keychain.string(for: .username)
     var pendingInvite: String?
@@ -34,13 +35,11 @@ final class SessionState {
         Task { await WSClient.shared.stop() }
     }
 
-    @MainActor
     private func requestPush() async {
         let granted = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])) ?? false
         if granted { UIApplication.shared.registerForRemoteNotifications() }
     }
 
-    @MainActor
     func logout() {
         Task { try? await APIClient.shared.logout() }
         stop()

@@ -17,20 +17,56 @@ public actor MessageService {
     @discardableResult
     public func send(_ content: Content, priority: String = "normal") async throws -> Message {
         var msg = Message(from: content, sender: me, status: "sending")
-        try await db.write { db in try msg.save(db) }
+        let stored = content.isStoredMessage
+        if stored { let m = msg; try await db.write { db in try m.save(db) } }
         do {
             try await sendEnvelopes(for: content, priority: priority)
             msg.status = "sent"
         } catch {
             msg.status = "failed"
-            try? await db.write { db in try msg.update(db) }
+            if stored { let m = msg; try? await db.write { db in try m.update(db) } }
             throw error
         }
-        try await db.write { db in
-            try msg.update(db)
-            try db.execute(sql: "UPDATE chat SET last_activity = ? WHERE id = ?", arguments: [msg.ts, msg.chatId])
+        if stored {
+            let m = msg
+            try await db.write { db in
+                try m.update(db)
+                try db.execute(sql: "UPDATE chat SET last_activity = ? WHERE id = ?", arguments: [m.ts, m.chatId])
+            }
         }
         return msg
+    }
+
+    /// Conferme di lettura per i messaggi altrui non ancora confermati nella chat.
+    public func sendReadReceipts(chat chatId: String) async {
+        let ids: [String] = (try? await db.read { db in
+            try String.fetchAll(db, sql: "SELECT id FROM message WHERE chat_id = ? AND sender != ? AND status = 'received'", arguments: [chatId, me])
+        }) ?? []
+        guard !ids.isEmpty else { return }
+        var c = Content(kind: .read, chat: chatId)
+        c.ids = ids
+        guard (try? await send(c)) != nil else { return }
+        try? await db.write { db in
+            for id in ids { try db.execute(sql: "UPDATE message SET status = 'seen' WHERE id = ?", arguments: [id]) }
+            try db.execute(sql: "UPDATE chat SET unread = 0 WHERE id = ?", arguments: [chatId])
+        }
+    }
+
+    /// Attiva o aggiorna la modalita' segreta e i messaggi effimeri di una chat.
+    public func setSecret(chat: Chat, secret: Bool, ephemeralS: Int?, lock: Bool) async throws {
+        var updated = chat
+        updated.isSecret = secret
+        updated.ephemeralS = ephemeralS
+        let u = updated
+        try await db.write { db in try u.update(db) }
+        var c = Content(kind: chat.isSecret ? .secretUpdate : .secretStart, chat: chat.id)
+        c.ephemeralS = ephemeralS
+        c.lock = lock
+        try await send(c)
+    }
+
+    public static func label(seconds: Int) -> String {
+        switch seconds { case 3600: "1 ora"; case 86400: "24 ore"; case 604800: "7 giorni"; default: "\(seconds) s" }
     }
 
     private func sendEnvelopes(for content: Content, priority: String) async throws {
@@ -127,6 +163,7 @@ public actor MessageService {
                                          liveUntil: c.liveUntilTs.map { Date(timeIntervalSince1970: TimeInterval($0) / 1000) },
                                          battery: c.battery)
                 try await db.write { db in try loc.save(db) }
+                if c.kind == .location, c.liveUntilTs == nil { try await storeIncoming(c, from: sender) }
             } else if c.liveUntilTs == 0 {
                 try await db.write { db in
                     try db.execute(sql: "UPDATE member_location SET live_until = NULL WHERE username = ?", arguments: [sender])
@@ -157,7 +194,7 @@ public actor MessageService {
         case .secretStart, .secretUpdate:
             try await db.write { db in
                 var chat = try Chat.fetchOne(db, key: c.chat) ?? Chat.dm(sender)
-                chat.isSecret = true
+                chat.isSecret = c.kind == .secretStart || c.ephemeralS != nil || c.lock == true
                 chat.ephemeralS = c.ephemeralS
                 try chat.save(db)
             }
@@ -171,11 +208,10 @@ public actor MessageService {
             if try Chat.fetchOne(db, key: c.chat) == nil, c.chat.hasPrefix("dm:") {
                 try Chat.dm(sender).save(db)
             }
-            var msg = Message(from: c, sender: sender, status: "received")
+            let msg = Message(from: c, sender: sender, status: "received")
             if try Chat.fetchOne(db, key: c.chat) == nil { return }
             try msg.save(db)
             try db.execute(sql: "UPDATE chat SET last_activity = ?, unread = unread + 1 WHERE id = ?", arguments: [msg.ts, c.chat])
-            _ = msg
         }
     }
 
@@ -196,7 +232,8 @@ public actor MessageService {
         var chat = Chat(id: "g:\(gid.uuidString)", title: name, isGroup: true)
         chat.members = Array(Set(members + [me]))
         chat.isFamily = family
-        try await db.write { db in try chat.save(db) }
+        let newChat = chat
+        try await db.write { db in try newChat.save(db) }
         var c = Content(kind: .groupCreate, chat: chat.id)
         c.groupId = gid.uuidString
         c.name = name

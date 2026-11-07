@@ -3,6 +3,7 @@ import SwiftUI
 /// Dark Matter / Liquid Daylight + HESH Originals. Nessuna emoji, nessuna icona
 /// che non sia SF Symbols.
 @Observable
+@MainActor
 final class Theme {
     enum Mode: String, CaseIterable { case darkMatter, liquidDaylight, system
         var colorScheme: ColorScheme? {
@@ -33,11 +34,12 @@ final class Theme {
     var original: Original {
         didSet { UserDefaults.standard.set(original.rawValue, forKey: "theme.original") }
     }
-    var reduceGlass: Bool = UIAccessibility.isReduceTransparencyEnabled
+    var reduceGlass: Bool = false
 
     init() {
         mode = Mode(rawValue: UserDefaults.standard.string(forKey: "theme.mode") ?? "") ?? .darkMatter
         original = Original(rawValue: UserDefaults.standard.string(forKey: "theme.original") ?? "") ?? .acid
+        reduceGlass = UIAccessibility.isReduceTransparencyEnabled
     }
 
     var accent: Color { original.color }
