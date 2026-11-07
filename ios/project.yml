@@ -18,7 +18,9 @@ settings:
 packages:
   LibSignalClient:
     url: https://github.com/signalapp/libsignal
-    from: "0.106.0"
+    exactVersion: "0.106.2"
+  LibSignalFfi:
+    path: Packages/LibSignalFfi
   GRDB:
     url: https://github.com/groue/GRDB.swift
     from: "7.0.0"
@@ -34,6 +36,7 @@ targets:
         APPLICATION_EXTENSION_API_ONLY: YES
     dependencies:
       - package: LibSignalClient
+      - package: LibSignalFfi
       - package: GRDB
 
   HESH:
