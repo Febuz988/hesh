@@ -12,6 +12,7 @@ struct RecoverySetupView: View {
     @State private var busy = false
     @State private var error: String?
     @State private var passkeyDone = false
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ZStack {
@@ -33,7 +34,7 @@ struct RecoverySetupView: View {
                     Button(passkeyDone ? "Passkey creata" : "Crea passkey") { Task { await createPasskey() } }
                         .buttonStyle(PillButtonStyle(filled: false)).disabled(passkeyDone)
                     if let error { Text(error).font(.system(size: 13)).foregroundStyle(Theme.danger) }
-                    Button("Continua") { onDone() }.buttonStyle(PillButtonStyle(filled: false)).padding(.top, 6)
+                    Button("Continua") { onDone(); dismiss() }.buttonStyle(PillButtonStyle(filled: false)).padding(.top, 6)
                 }
                 .padding(24)
             }
@@ -170,14 +171,18 @@ struct AuthSettingsView: View {
     @State private var lastBackup: Date?
     @State private var error: String?
     @State private var busy = false
+    @State private var hasPhrase = false
 
     var body: some View {
         ZStack {
             HESHBackground()
             List {
                 Section("Frase di recupero") {
+                    if !hasPhrase {
+                        NavigationLink("Genera le 12 parole e il primo backup") { RecoverySetupView { hasPhrase = true } }
+                    }
                     if let phrase { PhraseGrid(words: phrase).listRowBackground(Color.clear) }
-                    Button(phrase == nil ? "Mostra con Face ID" : "Nascondi") { if phrase == nil { reveal() } else { phrase = nil } }
+                    if hasPhrase { Button(phrase == nil ? "Mostra con Face ID" : "Nascondi") { if phrase == nil { reveal() } else { phrase = nil } } }
                     LabeledContent("Ultimo backup", value: lastBackup.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "mai")
                     Button("Aggiorna il backup adesso") { Task { busy = true; try? await Recovery.shared.uploadBackup(); lastBackup = await Recovery.shared.lastUpload; busy = false } }.disabled(busy)
                 }
@@ -200,6 +205,7 @@ struct AuthSettingsView: View {
     }
 
     private func load() async {
+        hasPhrase = await Recovery.shared.hasPhrase
         lastBackup = await Recovery.shared.lastUpload
         passkeys = ((try? await APIClient.shared.passkeys()) ?? []).compactMap { d in
             guard let id = d["id"]?.value as? String else { return nil }
