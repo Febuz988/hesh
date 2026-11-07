@@ -24,6 +24,12 @@ public struct Chat: Codable, FetchableRecord, PersistableRecord, Identifiable, S
         set { membersJson = String(data: (try? JSONEncoder().encode(newValue)) ?? Data("[]".utf8), encoding: .utf8) ?? "[]" }
     }
 
+    public init(id: String, title: String, isGroup: Bool, isSecret: Bool = false, ephemeralS: Int? = nil, muted: Bool = false,
+                isFamily: Bool = false, membersJson: String = "[]", lastActivity: Date? = nil, unread: Int = 0) {
+        self.id = id; self.title = title; self.isGroup = isGroup; self.isSecret = isSecret; self.ephemeralS = ephemeralS
+        self.muted = muted; self.isFamily = isFamily; self.membersJson = membersJson; self.lastActivity = lastActivity; self.unread = unread
+    }
+
     public var dmUsername: String? { id.hasPrefix("dm:") ? String(id.dropFirst(3)) : nil }
     public var groupId: UUID? { id.hasPrefix("g:") ? UUID(uuidString: String(id.dropFirst(2))) : nil }
 
@@ -72,6 +78,7 @@ public struct Contact: Codable, FetchableRecord, PersistableRecord, Identifiable
     public var blocked: Bool = false
     public var keyChanged: Bool = false
     public var id: String { username }
+    public init(username: String) { self.username = username }
 
     enum CodingKeys: String, CodingKey {
         case username, displayName = "display_name", profileKey = "profile_key", avatarPath = "avatar_path", verified, blocked, keyChanged = "key_changed"
@@ -89,6 +96,9 @@ public struct MemberLocation: Codable, FetchableRecord, PersistableRecord, Ident
     public var battery: Double?
     public var id: String { username }
     enum CodingKeys: String, CodingKey { case username, lat, lon, accM = "acc_m", ts, liveUntil = "live_until", battery }
+    public init(username: String, lat: Double, lon: Double, accM: Double?, ts: Date, liveUntil: Date?, battery: Double?) {
+        self.username = username; self.lat = lat; self.lon = lon; self.accM = accM; self.ts = ts; self.liveUntil = liveUntil; self.battery = battery
+    }
 
     public var isStale: Bool { Date().timeIntervalSince(ts) > 300 }
 }
@@ -102,4 +112,7 @@ public struct Place: Codable, FetchableRecord, PersistableRecord, Identifiable, 
     public var radiusM: Double
     public var notify: Bool = true
     enum CodingKeys: String, CodingKey { case id, name, lat, lon, radiusM = "radius_m", notify }
+    public init(id: String, name: String, lat: Double, lon: Double, radiusM: Double, notify: Bool = true) {
+        self.id = id; self.name = name; self.lat = lat; self.lon = lon; self.radiusM = radiusM; self.notify = notify
+    }
 }
