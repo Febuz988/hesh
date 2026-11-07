@@ -39,8 +39,9 @@ public actor MessageService {
 
     /// Conferme di lettura per i messaggi altrui non ancora confermati nella chat.
     public func sendReadReceipts(chat chatId: String) async {
+        let myName = me
         let ids: [String] = (try? await db.read { db in
-            try String.fetchAll(db, sql: "SELECT id FROM message WHERE chat_id = ? AND sender != ? AND status = 'received'", arguments: [chatId, me])
+            try String.fetchAll(db, sql: "SELECT id FROM message WHERE chat_id = ? AND sender != ? AND status = 'received'", arguments: [chatId, myName])
         }) ?? []
         guard !ids.isEmpty else { return }
         var c = Content(kind: .read, chat: chatId)
