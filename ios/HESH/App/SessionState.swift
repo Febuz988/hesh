@@ -27,6 +27,7 @@ final class SessionState {
             }
             await MessageService.shared.replenishPrekeysIfNeeded()
             try? await MessageService.shared.purgeExpired()
+            if let last = await Recovery.shared.lastUpload, Date().timeIntervalSince(last) < 86400 { } else { try? await Recovery.shared.uploadBackup() }
         }
         Task { await requestPush() }
     }

@@ -9,6 +9,7 @@ public enum Keychain {
         case username
         case userId
         case profileKey
+        case recoveryEntropy
     }
 
     public enum KeychainError: Error { case status(OSStatus) }
@@ -54,6 +55,6 @@ public enum Keychain {
     }
 
     public static func wipe() {
-        [Key.sessionToken, .username, .userId, .profileKey].forEach(delete)
+        [Key.sessionToken, .username, .userId, .profileKey, .recoveryEntropy].forEach(delete)
     }
 }

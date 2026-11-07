@@ -39,6 +39,17 @@ struct WelcomeView: View {
                         .padding(20)
                     }
                     Spacer()
+                    NavigationLink { RestoreView() } label: {
+                        HStack {
+                            Label("Ho già un account: accedi con passkey", systemImage: "person.badge.key")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                        }
+                        .font(.system(size: 15, weight: .medium))
+                        .padding(.horizontal, 18).frame(height: 54)
+                        .background(Capsule().fill(Color.primary.opacity(0.06)).overlay(Capsule().strokeBorder(Color.primary.opacity(0.12))))
+                    }
+                    .foregroundStyle(.primary)
                     Text("Codice sorgente aperto · nessun numero di telefono, nessuna email")
                         .font(.system(size: 11)).foregroundStyle(Color.heshMuted(scheme))
                         .frame(maxWidth: .infinity)

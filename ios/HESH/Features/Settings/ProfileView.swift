@@ -45,6 +45,7 @@ struct ProfileView: View {
                         }
                         NavigationLink { InvitesView() } label: { Label("Inviti", systemImage: "qrcode") }
                         NavigationLink { DevicesView() } label: { Label("Dispositivi collegati", systemImage: "laptopcomputer.and.iphone") }
+                        NavigationLink { AuthSettingsView() } label: { Label("Passkey e frase di recupero", systemImage: "key") }
                         NavigationLink { NotificationSettingsView() } label: { Label("Notifiche e suoni", systemImage: "bell") }
                         NavigationLink { ThemesView() } label: { Label("Aspetto e temi", systemImage: "circle.lefthalf.filled") }
                     }

@@ -52,6 +52,7 @@ public actor SocialService {
         defaults?.set(birthday, forKey: "profile.birthday")
         defaults?.set(birthdayVisibility, forKey: "profile.birthdayVisibility")
         try await broadcastProfile()
+        Task { try? await Recovery.shared.uploadBackup() }
     }
 
     public func broadcastProfile() async throws {
@@ -127,6 +128,7 @@ public actor SocialService {
         }
         try await sendDM(Content(kind: .contactAccept, chat: "dm:\(username)"), to: username)
         try? await broadcastProfile()
+        Task { try? await Recovery.shared.uploadBackup() }
     }
 
     public func declineContact(_ username: String) async throws {
@@ -211,6 +213,7 @@ public actor SocialService {
             try await crypto.rotateSenderKey(for: gid)
             try await messages.distributeSenderKey(for: updated)
         }
+        Task { try? await Recovery.shared.uploadBackup() }
     }
 
     public func leaveGroup(_ chat: Chat) async throws {

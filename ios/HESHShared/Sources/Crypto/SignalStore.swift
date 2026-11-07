@@ -30,6 +30,21 @@ public final class SignalStore: IdentityKeyStore, PreKeyStore, SignedPreKeyStore
         }
     }
 
+    /// Ripristino da backup: sostituisce identita' e registration id, azzera sessioni e prekey.
+    public func installLocalIdentity(serializedPair: Data, registrationId: UInt32) throws {
+        _ = try IdentityKeyPair(bytes: serializedPair)  // valida
+        try db.write { db in
+            try db.execute(sql: "DELETE FROM signal_session")
+            try db.execute(sql: "DELETE FROM signal_prekey")
+            try db.execute(sql: "DELETE FROM signal_signed_prekey")
+            try db.execute(sql: "DELETE FROM signal_kyber_prekey")
+            try db.execute(sql: "DELETE FROM signal_sender_key")
+            try db.execute(sql: "INSERT OR REPLACE INTO signal_local(key, value) VALUES ('identity_key_pair', ?)", arguments: [serializedPair])
+            try db.execute(sql: "INSERT OR REPLACE INTO signal_local(key, value) VALUES ('registration_id', ?)", arguments: [withUnsafeBytes(of: registrationId.littleEndian) { Data($0) }])
+            try db.execute(sql: "DELETE FROM signal_local WHERE key = 'prekey_counter'")
+        }
+    }
+
     public func identityKeyPair(context: StoreContext) throws -> IdentityKeyPair {
         try db.read { db in
             guard let data = try Data.fetchOne(db, sql: "SELECT value FROM signal_local WHERE key = 'identity_key_pair'") else {

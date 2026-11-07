@@ -34,8 +34,8 @@ public actor CryptoService {
     }
 
     /// Genera identita', signed prekey, kyber prekey e 100 one-time prekey.
-    public func prepareRegistration() throws -> RegistrationMaterial {
-        try store.bootstrapLocalIdentityIfNeeded()
+    public func prepareRegistration(reuseIdentity: Bool = false) throws -> RegistrationMaterial {
+        if !reuseIdentity { try store.bootstrapLocalIdentityIfNeeded() }
         let pair = try store.identityKeyPair(context: context)
         let regId = try store.localRegistrationId(context: context)
 

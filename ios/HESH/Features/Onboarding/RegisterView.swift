@@ -10,6 +10,7 @@ struct RegisterView: View {
     @State private var username = ""
     @State private var busy = false
     @State private var error: String?
+    @State private var registered: RegisterResponse?
 
     private var valid: Bool {
         username.range(of: "^[a-z0-9][a-z0-9.]{2,19}$", options: .regularExpression) != nil
@@ -69,8 +70,14 @@ struct RegisterView: View {
             }
             .padding(24)
         }
-        .navigationTitle("Passo 2 di 2")
+        .navigationTitle("Passo 2 di 3")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $registered) { res in
+            RecoverySetupView {
+                session.pendingInvite = nil
+                session.username = res.username
+            }
+        }
     }
 
     private func register() async {
@@ -96,10 +103,7 @@ struct RegisterView: View {
             try Keychain.set(res.token, for: .sessionToken)
             try Keychain.set(res.username, for: .username)
             try Keychain.set(res.userId, for: .userId)
-            await MainActor.run {
-                session.pendingInvite = nil
-                session.username = res.username
-            }
+            await MainActor.run { registered = res }
         } catch {
             self.error = error.localizedDescription
         }

@@ -264,6 +264,7 @@ public actor MessageService {
         }
         try await api.send(envelopes)
         try await distributeSenderKey(for: chat)
+        Task { try? await Recovery.shared.uploadBackup() }
         return chat
     }
 

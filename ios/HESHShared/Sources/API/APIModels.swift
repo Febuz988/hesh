@@ -44,12 +44,16 @@ public struct RegisterRequest: Codable, Sendable {
     }
 }
 
-public struct RegisterResponse: Codable, Sendable {
+public struct RegisterResponse: Codable, Sendable, Hashable, Identifiable {
+    public var id: String { userId }
     public var userId: String
     public var username: String
     public var deviceId: UInt32
     public var token: String
     enum CodingKeys: String, CodingKey { case userId = "user_id", username, deviceId = "device_id", token }
+    public init(userId: String, username: String, deviceId: UInt32, token: String) {
+        self.userId = userId; self.username = username; self.deviceId = deviceId; self.token = token
+    }
 }
 
 public struct Invite: Codable, Sendable, Identifiable {

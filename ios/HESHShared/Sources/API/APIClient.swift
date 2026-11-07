@@ -114,6 +114,68 @@ public actor APIClient {
         try await request("GET", "attachments/\(attachmentId)")
     }
 
+    // MARK: Auth: passkey, backup, riprovisioning
+
+    public func passkeyRegisterOptions() async throws -> (challengeId: String, options: [String: Any]) {
+        let data = try await request("POST", "auth/passkey/register/options")
+        return try parseOptions(data)
+    }
+
+    public func passkeyRegister(challengeId: String, credential: [String: Any], name: String) async throws {
+        let body = try JSONSerialization.data(withJSONObject: ["challenge_id": challengeId, "credential": credential, "name": name])
+        _ = try await request("POST", "auth/passkey/register", body: body)
+    }
+
+    public func passkeys() async throws -> [[String: AnyCodable]] {
+        try json(try await request("GET", "auth/passkeys"))
+    }
+
+    public func deletePasskey(id: String) async throws {
+        _ = try await request("DELETE", "auth/passkeys/\(id)")
+    }
+
+    public func passkeyLoginOptions(username: String) async throws -> (challengeId: String, options: [String: Any]) {
+        let data = try await request("POST", "auth/passkey/login/options", body: try encoder.encode(["username": username]), auth: false)
+        return try parseOptions(data)
+    }
+
+    public func passkeyLogin(challengeId: String, credential: [String: Any], deviceName: String) async throws -> RegisterResponse {
+        let body = try JSONSerialization.data(withJSONObject: ["challenge_id": challengeId, "credential": credential, "device_name": deviceName])
+        let data = try await request("POST", "auth/passkey/login", body: body, auth: false)
+        guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let token = obj["token"] as? String, let user = obj["username"] as? String, let uid = obj["user_id"] as? String else {
+            throw APIError.decoding(NSError(domain: "hesh", code: 1))
+        }
+        return RegisterResponse(userId: uid, username: user, deviceId: 0, token: token)
+    }
+
+    private func parseOptions(_ data: Data) throws -> (String, [String: Any]) {
+        guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let id = obj["challenge_id"] as? String, let opts = obj["options"] as? [String: Any] else {
+            throw APIError.decoding(NSError(domain: "hesh", code: 2))
+        }
+        return (id, opts)
+    }
+
+    public func putBackup(_ blob: Data) async throws {
+        _ = try await request("PUT", "auth/backup", body: blob, contentType: "application/octet-stream")
+    }
+
+    public func getBackup() async throws -> Data {
+        try await request("GET", "auth/backup")
+    }
+
+    public func reprovision(_ m: CryptoService.RegistrationMaterial, apnsToken: String? = nil) async throws {
+        var obj: [String: Any] = [
+            "identity_key": m.identityKey, "registration_id": m.registrationId,
+            "signed_prekey_id": m.signedPrekeyId, "signed_prekey": m.signedPrekey, "signed_prekey_signature": m.signedPrekeySignature,
+            "kyber_prekey_id": m.kyberPrekeyId, "kyber_prekey": m.kyberPrekey, "kyber_prekey_signature": m.kyberPrekeySignature,
+            "one_time_prekeys": m.oneTimePrekeys.map { ["key_id": $0.keyId, "public_key": $0.publicKey] },
+        ]
+        if let apnsToken { obj["apns_token"] = apnsToken }
+        _ = try await request("POST", "auth/reprovision", body: try JSONSerialization.data(withJSONObject: obj))
+    }
+
     // MARK: Devices
 
     public func devices() async throws -> [DeviceInfo] {
