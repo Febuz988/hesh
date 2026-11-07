@@ -88,7 +88,9 @@ public actor MessageService {
         } else {
             plain = try await crypto.decrypt(ct, type: e.msgType, from: e.fromUsername, deviceId: e.fromDeviceId)
         }
-        let content = try Content.decode(plain)
+        var content = try Content.decode(plain)
+        // Una chat 1:1 si chiama "dm:<altro>" da ciascun lato: dal mio lato l'altro e' il mittente.
+        if content.chat.hasPrefix("dm:") { content.chat = "dm:\(e.fromUsername)" }
         try await apply(content, from: e.fromUsername, deviceId: e.fromDeviceId)
         return content
     }
