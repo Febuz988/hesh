@@ -47,6 +47,7 @@ struct LockScreen: View {
 
 struct MainTabView: View {
     @Environment(Theme.self) private var theme
+    @State private var lastError: String? = Diagnostics.lastError
     var body: some View {
         TabView {
             ChatsView().tabItem { Label("Chat", systemImage: "bubble.left.and.bubble.right") }
@@ -56,6 +57,21 @@ struct MainTabView: View {
             ProfileView().tabItem { Label("Io", systemImage: "person.crop.circle") }
         }
         .tint(theme.accent)
+        .overlay(alignment: .top) {
+            if let lastError {
+                Text(lastError)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .padding(10)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.danger.opacity(0.92)))
+                    .padding(.horizontal, 12)
+                    .textSelection(.enabled)
+                    .onTapGesture { Diagnostics.clear(); self.lastError = nil }
+            }
+        }
+        .task {
+            while !Task.isCancelled { lastError = Diagnostics.lastError; try? await Task.sleep(for: .seconds(2)) }
+        }
     }
 }
 
