@@ -4,7 +4,7 @@
 import PackageDescription
 
 let version = "0.106.2"
-let checksum = "CHECKSUM_DA_SOSTITUIRE"
+let checksum = "416ca269870a0bb1e12784dfe96bbd548b585d4aa58f1c12d82b9e19da42a157"
 
 let package = Package(
     name: "LibSignalFfi",
