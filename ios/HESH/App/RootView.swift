@@ -53,7 +53,7 @@ struct MainTabView: View {
             ChatsView().tabItem { Label("Chat", systemImage: "bubble.left.and.bubble.right") }
             CallsPlaceholderView().tabItem { Label("Chiamate", systemImage: "phone") }
             SOSView().tabItem { Label("SOS", systemImage: "exclamationmark.triangle") }
-            MapPlaceholderView().tabItem { Label("Mappa", systemImage: "map") }
+            FamilyMapView().tabItem { Label("Mappa", systemImage: "map") }
             ProfileView().tabItem { Label("Io", systemImage: "person.crop.circle") }
         }
         .tint(theme.accent)
@@ -81,8 +81,3 @@ struct CallsPlaceholderView: View {
     }
 }
 
-struct MapPlaceholderView: View {
-    var body: some View {
-        ZStack { HESHBackground(); Text("Mappa famiglia: milestone 5").foregroundStyle(.secondary) }
-    }
-}

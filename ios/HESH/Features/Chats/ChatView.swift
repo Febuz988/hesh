@@ -131,6 +131,11 @@ struct Bubble: View {
                         .font(.system(size: 15, weight: .bold)).foregroundStyle(Color.heshInk)
                         .padding(.horizontal, 14).padding(.vertical, 10)
                         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Theme.danger))
+                } else if let event = systemLine {
+                    Label(event.text, systemImage: event.icon)
+                        .font(.system(size: 13, weight: .medium)).foregroundStyle(Color.heshMuted(scheme))
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .background(Capsule().fill(Color.primary.opacity(0.06)))
                 } else {
                     Text(message.content?.body ?? "")
                         .font(.system(size: 15))
@@ -154,5 +159,18 @@ struct Bubble: View {
         }
         .frame(maxWidth: 290, alignment: mine ? .trailing : .leading)
         .frame(maxWidth: .infinity, alignment: mine ? .trailing : .leading)
+    }
+
+    private var systemLine: (text: String, icon: String)? {
+        guard let c = message.content else { return nil }
+        let who = mine ? "Hai" : message.sender
+        switch c.kind {
+        case .sosResolved: return ("\(mine ? "Hai comunicato" : message.sender + " ha comunicato") che l'emergenza è rientrata", "checkmark.shield")
+        case .checkin: return ("\(mine ? "Sei arrivato" : message.sender + " è arrivato")\(c.place.map { " a \($0)" } ?? "")", "figure.walk.arrival")
+        case .geofence: return ("\(mine ? "Sei" : message.sender + " è") \(c.event == "enter" ? "arrivato a" : "uscito da") \(c.place ?? "")", "mappin.and.ellipse")
+        case .location: return c.liveUntilTs == 0 ? ("\(who) smesso di condividere la posizione", "location.slash") : ("\(mine ? "Stai condividendo" : message.sender + " condivide") la posizione", "location.fill")
+        case .groupCreate, .groupUpdate, .senderKey: return ("Gruppo aggiornato", "person.2")
+        default: return nil
+        }
     }
 }

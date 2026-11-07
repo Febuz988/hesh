@@ -127,8 +127,19 @@ public actor MessageService {
                                          liveUntil: c.liveUntilTs.map { Date(timeIntervalSince1970: TimeInterval($0) / 1000) },
                                          battery: c.battery)
                 try await db.write { db in try loc.save(db) }
+            } else if c.liveUntilTs == 0 {
+                try await db.write { db in
+                    try db.execute(sql: "UPDATE member_location SET live_until = NULL WHERE username = ?", arguments: [sender])
+                }
             }
             if c.kind == .sos { try await storeIncoming(c, from: sender) }
+        case .geofence, .checkin:
+            if let lat = c.lat, let lon = c.lon {
+                let loc = MemberLocation(username: sender, lat: lat, lon: lon, accM: c.accM,
+                                         ts: Date(timeIntervalSince1970: TimeInterval(c.ts) / 1000), liveUntil: nil, battery: nil)
+                try await db.write { db in try loc.save(db) }
+            }
+            try await storeIncoming(c, from: sender)
         case .groupCreate, .groupUpdate:
             try await upsertGroup(c)
             if c.kind == .groupCreate {
