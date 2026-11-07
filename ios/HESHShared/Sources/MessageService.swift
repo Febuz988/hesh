@@ -114,6 +114,8 @@ public actor MessageService {
             do {
                 applied.append(try await handle(e))
                 done.append(e.id)
+            } catch ServiceError.duplicate {
+                done.append(e.id)
             } catch {
                 Diagnostics.record("busta da \(e.fromUsername) tipo \(e.msgType): \(error)")
             }
@@ -125,11 +127,23 @@ public actor MessageService {
     /// Decifra e applica una busta. Restituisce il contenuto (per la notifica).
     public func handle(_ e: EnvelopeIn) async throws -> Content {
         guard let ct = Data(base64Encoded: e.ciphertext) else { throw ServiceError.badEnvelope }
+        // Dedup: la stessa busta puo' arrivare da WebSocket e da coda REST.
+        let seen = try await db.read { db in try Row.fetchOne(db, sql: "SELECT 1 FROM processed_envelope WHERE id = ?", arguments: [e.id]) != nil }
+        if seen { throw ServiceError.duplicate }
         let plain: Data
-        if e.msgType == 7 {
-            plain = try await crypto.groupDecrypt(ct, from: e.fromUsername, deviceId: e.fromDeviceId)
-        } else {
-            plain = try await crypto.decrypt(ct, type: e.msgType, from: e.fromUsername, deviceId: e.fromDeviceId)
+        do {
+            if e.msgType == 7 {
+                plain = try await crypto.groupDecrypt(ct, from: e.fromUsername, deviceId: e.fromDeviceId)
+            } else {
+                plain = try await crypto.decrypt(ct, type: e.msgType, from: e.fromUsername, deviceId: e.fromDeviceId)
+            }
+        } catch {
+            if "\(error)".contains("duplicatedMessage") { throw ServiceError.duplicate }
+            throw error
+        }
+        try await db.write { db in
+            try db.execute(sql: "INSERT OR IGNORE INTO processed_envelope(id, ts) VALUES (?, ?)", arguments: [e.id, Date()])
+            try db.execute(sql: "DELETE FROM processed_envelope WHERE ts < ?", arguments: [Date().addingTimeInterval(-7 * 86400)])
         }
         var content = try Content.decode(plain)
         // Una chat 1:1 si chiama "dm:<altro>" da ciascun lato: dal mio lato l'altro e' il mittente.
@@ -283,5 +297,5 @@ public actor MessageService {
         }
     }
 
-    public enum ServiceError: Error { case unknownChat, badEnvelope }
+    public enum ServiceError: Error { case unknownChat, badEnvelope, duplicate }
 }

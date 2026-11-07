@@ -21,6 +21,8 @@ final class SessionState {
                 do {
                     _ = try await MessageService.shared.handle(env)
                     await WSClient.shared.ack([env.id])
+                } catch MessageService.ServiceError.duplicate {
+                    await WSClient.shared.ack([env.id])
                 } catch {
                     Diagnostics.record("busta da \(env.fromUsername) tipo \(env.msgType): \(error)")
                 }

@@ -41,9 +41,35 @@ struct FamilyMapView: View {
                 .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
                 .mapControls { MapUserLocationButton(); MapCompass() }
 
-                sharingPanel
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 8)
+                VStack(spacing: 8) {
+                    if !members.filter({ $0.username != me }).isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                Button { fitAll() } label: { Label("Tutti", systemImage: "arrow.up.left.and.arrow.down.right") }
+                                    .font(.system(size: 12, weight: .semibold)).padding(.horizontal, 12).frame(height: 32)
+                                    .background(Capsule().fill(.ultraThinMaterial)).foregroundStyle(.primary)
+                                ForEach(members.filter { $0.username != me }) { m in
+                                    Button {
+                                        withAnimation { camera = .region(MKCoordinateRegion(center: .init(latitude: m.lat, longitude: m.lon), latitudinalMeters: 1500, longitudinalMeters: 1500)) }
+                                    } label: {
+                                        HStack(spacing: 6) {
+                                            Circle().fill(m.isStale ? Color.gray : theme.accent).frame(width: 8, height: 8)
+                                            Text(m.username).font(.system(size: 12, weight: .semibold))
+                                            Text(m.ts, style: .relative).font(.system(size: 11)).foregroundStyle(.secondary)
+                                        }
+                                        .padding(.horizontal, 12).frame(height: 32)
+                                        .background(Capsule().fill(.ultraThinMaterial))
+                                    }
+                                    .foregroundStyle(.primary)
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                        }
+                    }
+                    sharingPanel
+                        .padding(.horizontal, 12)
+                }
+                .padding(.bottom, 8)
             }
             .navigationTitle("Famiglia")
             .navigationBarTitleDisplayMode(.inline)
@@ -132,9 +158,23 @@ struct FamilyMapView: View {
         return "\(sharing) su \(others.count) condividono"
     }
 
+    private func fitAll() {
+        var coords = members.filter { $0.username != me }.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
+        if let mine = location.current?.coordinate { coords.append(mine) }
+        guard !coords.isEmpty else { return }
+        let lats = coords.map(\.latitude), lons = coords.map(\.longitude)
+        let center = CLLocationCoordinate2D(latitude: (lats.min()! + lats.max()!) / 2, longitude: (lons.min()! + lons.max()!) / 2)
+        let span = MKCoordinateSpan(latitudeDelta: max(0.02, (lats.max()! - lats.min()!) * 1.6), longitudeDelta: max(0.02, (lons.max()! - lons.min()!) * 1.6))
+        withAnimation { camera = .region(MKCoordinateRegion(center: center, span: span)) }
+    }
+
     private func observe() {
         observer = ValueObservation.tracking { db in try MemberLocation.fetchAll(db) }
-            .start(in: Database.shared.pool, scheduling: .immediate, onError: { _ in }, onChange: { members = $0 })
+            .start(in: Database.shared.pool, scheduling: .immediate, onError: { _ in }, onChange: { new in
+                let firstLoad = members.isEmpty && !new.isEmpty
+                members = new
+                if firstLoad { fitAll() }
+            })
         placesObserver = ValueObservation.tracking { db in try Place.fetchAll(db) }
             .start(in: Database.shared.pool, scheduling: .immediate, onError: { _ in }, onChange: { places = $0 })
         Task { family = try? await Database.shared.pool.read { db in try Chat.filter(Column("is_family") == true).fetchOne(db) } }

@@ -129,6 +129,12 @@ public final class Database: Sendable {
                 t.add(column: "admins_json", .text).notNull().defaults(to: "[]")
             }
         }
+        m.registerMigration("v3") { db in
+            try db.create(table: "processed_envelope") { t in
+                t.column("id", .text).primaryKey()
+                t.column("ts", .datetime).notNull()
+            }
+        }
         return m
     }
 }
