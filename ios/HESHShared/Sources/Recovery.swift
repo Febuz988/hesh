@@ -44,7 +44,7 @@ public actor Recovery {
     static func phrase(from entropy: [UInt8]) throws -> [String] {
         let hash = SHA256.hash(data: Data(entropy))
         var bits = entropy.flatMap { b in (0..<8).reversed().map { (b >> $0) & 1 } }
-        let first = hash.first!
+        let first = Array(hash)[0]
         bits += (0..<4).reversed().map { (first >> (4 + $0)) & 1 }   // 4 bit di checksum
         return stride(from: 0, to: 132, by: 11).map { i in
             let idx = bits[i..<i + 11].reduce(0) { $0 << 1 | Int($1) }
@@ -62,7 +62,7 @@ public actor Recovery {
         }
         let entropy = stride(from: 0, to: 128, by: 8).map { i in bits[i..<i + 8].reduce(0) { $0 << 1 | $1 } }
         let check = Array(bits[128..<132])
-        let hash = SHA256.hash(data: Data(entropy)).first!
+        let hash = Array(SHA256.hash(data: Data(entropy)))[0]
         let expected = (0..<4).reversed().map { (hash >> (4 + $0)) & 1 }
         guard check == expected else { throw RecoveryError.badPhrase }
         return entropy
