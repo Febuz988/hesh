@@ -50,6 +50,15 @@ final class SessionState {
         Task { await WSClient.shared.stop() }
     }
 
+    /// App tornata in primo piano: WS fresco e coda svuotata via REST.
+    func resume() {
+        guard isLoggedIn else { return }
+        Task {
+            await WSClient.shared.reconnect()
+            _ = try? await MessageService.shared.drainQueue()
+        }
+    }
+
     private func requestPush() async {
         let granted = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])) ?? false
         if granted { UIApplication.shared.registerForRemoteNotifications() }

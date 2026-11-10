@@ -7,6 +7,7 @@ struct HESHApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var session = SessionState()
     @State private var theme = Theme()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -15,6 +16,9 @@ struct HESHApp: App {
                 .environment(theme)
                 .preferredColorScheme(theme.mode.colorScheme)
                 .onOpenURL { url in session.pendingInvite = InviteLink.parse(url) }
+                .onChange(of: scenePhase) { old, new in
+                    if new == .active, old == .background { session.resume() }
+                }
         }
     }
 }
