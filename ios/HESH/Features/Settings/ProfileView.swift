@@ -1,6 +1,7 @@
 import GRDB
 import HESHShared
 import SwiftUI
+import UIKit
 
 struct MyAvatar: View {
     var size: CGFloat = 40
@@ -48,6 +49,7 @@ struct ProfileView: View {
                         NavigationLink { AuthSettingsView() } label: { Label("Passkey e frase di recupero", systemImage: "key") }
                         NavigationLink { NotificationSettingsView() } label: { Label("Notifiche e suoni", systemImage: "bell") }
                         NavigationLink { ThemesView() } label: { Label("Aspetto e temi", systemImage: "circle.lefthalf.filled") }
+                        NavigationLink { DiagnosticsView() } label: { Label("Diagnostica", systemImage: "stethoscope") }
                     }
                     Section {
                         Button("Esci da questo dispositivo") { session.logout() }
@@ -195,5 +197,33 @@ struct ThemesView: View {
             .scrollContentBackground(.hidden)
         }
         .navigationTitle("Aspetto e temi")
+    }
+}
+
+
+/// Storico degli errori e degli eventi di chiamata. Niente contenuti dei messaggi.
+struct DiagnosticsView: View {
+    @State private var lines: [String] = Diagnostics.history
+    var body: some View {
+        ZStack {
+            HESHBackground()
+            List {
+                ForEach(Array(lines.reversed().enumerated()), id: \.offset) { _, l in
+                    Text(l).font(.system(size: 12, design: .monospaced)).textSelection(.enabled).listRowBackground(Color.clear)
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .overlay { if lines.isEmpty { ContentUnavailableView("Nessun evento", systemImage: "checkmark.circle") } }
+        }
+        .navigationTitle("Diagnostica")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("Copia tutto") { UIPasteboard.general.string = lines.joined(separator: "\n") }
+                    Button("Svuota", role: .destructive) { Diagnostics.clearHistory(); lines = [] }
+                } label: { Image(systemName: "ellipsis.circle") }
+            }
+        }
+        .onAppear { lines = Diagnostics.history }
     }
 }

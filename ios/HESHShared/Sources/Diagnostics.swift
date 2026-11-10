@@ -9,9 +9,16 @@ public enum Diagnostics {
 
     public static func record(_ message: String) {
         log.error("\(message, privacy: .public)")
-        defaults?.set("\(Date().formatted(date: .omitted, time: .standard)) \(message)", forKey: "lastError")
+        let line = "\(Date().formatted(date: .omitted, time: .standard)) \(message)"
+        defaults?.set(line, forKey: "lastError")
+        var h = history
+        h.append(line)
+        if h.count > 60 { h.removeFirst(h.count - 60) }
+        defaults?.set(h, forKey: "diag.history")
     }
 
     public static var lastError: String? { defaults?.string(forKey: "lastError") }
+    public static var history: [String] { defaults?.stringArray(forKey: "diag.history") ?? [] }
     public static func clear() { defaults?.removeObject(forKey: "lastError") }
+    public static func clearHistory() { defaults?.removeObject(forKey: "diag.history"); clear() }
 }

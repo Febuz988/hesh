@@ -106,6 +106,9 @@ struct ChatRow: View {
         case .attachment: return last.content?.isImage == true ? "Foto" : last.content?.isVoice == true ? "Messaggio vocale" : (last.content?.name ?? "Allegato")
         case .location: return "Posizione"
         case .sos: return "SOS"
+        case .callEnd: return last.content.map { CallLog.short($0, mine: last.sender == (Keychain.string(for: .username) ?? "")) } ?? "Chiamata"
+        case .checkin, .geofence: return "Posizione"
+        case .sosResolved: return "Avviso rientrato"
         default: return last.kind
         }
     }

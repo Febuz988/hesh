@@ -49,6 +49,13 @@ final class CallService: NSObject {
     private var endedReasonSent = false
 
     private static let ringSeconds: UInt64 = 45
+    /// Sul simulatore CallKit chiude le chiamate da solo (niente sessione audio telefonica):
+    /// la chiamata vive solo nella schermata in-app.
+    #if targetEnvironment(simulator)
+    private static let useCallKit = false
+    #else
+    private static let useCallKit = true
+    #endif
 
     override private init() {
         RTCInitializeSSL()
@@ -87,6 +94,7 @@ final class CallService: NSObject {
         call = ActiveCall(uuid: uuid, callId: uuid.uuidString.lowercased(), peer: peer, video: video, outgoing: true)
         state = .outgoing
         statusText = "Chiamata in corso"
+        guard Self.useCallKit else { Task { await startOrFail() }; return }
         let handle = CXHandle(type: .generic, value: peer)
         let action = CXStartCallAction(call: uuid, handle: handle)
         action.isVideo = video
@@ -97,12 +105,66 @@ final class CallService: NSObject {
 
     func hangUp() {
         guard let call else { return }
+        guard Self.useCallKit else { Task { await performEnd() }; return }
         controller.request(CXTransaction(action: CXEndCallAction(call: call.uuid))) { _ in }
     }
 
     func answer() {
         guard let call, state == .incoming else { return }
+        guard Self.useCallKit else { Task { await answerOrFail() }; return }
         controller.request(CXTransaction(action: CXAnswerCallAction(call: call.uuid))) { _ in }
+    }
+
+    // MARK: Azioni (chiamate da CallKit sul dispositivo, direttamente sul simulatore)
+
+    private func performStart() async throws {
+        guard let call else { throw CallError.peerConnection }
+        configureAudioSession()
+        try await makePeerConnection()
+        guard let pc else { throw CallError.peerConnection }
+        let constraints = RTCMediaConstraints(mandatoryConstraints: ["OfferToReceiveAudio": "true", "OfferToReceiveVideo": "true"], optionalConstraints: nil)
+        let offer = try await pc.offer(for: constraints)
+        try await pc.setLocalDescription(offer)
+        await sendSignal(.callOffer, to: call.peer) { $0.sdp = offer.sdp; $0.video = call.video }
+        if Self.useCallKit { provider.reportOutgoingCall(with: call.uuid, startedConnectingAt: Date()) } else { RTCAudioSession.sharedInstance().isAudioEnabled = true }
+        if call.video { cameraOn = true }
+        startRingTimer { [weak self] in
+            guard let self, self.state == .outgoing else { return }
+            Task { await self.sendEndIfNeeded(reason: "timeout") }
+            if Self.useCallKit { self.provider.reportCall(with: call.uuid, endedAt: Date(), reason: .unanswered) }
+            self.teardown(status: "Nessuna risposta")
+        }
+    }
+
+    private func startOrFail() async {
+        do { try await performStart() } catch { fail(error.localizedDescription) }
+    }
+
+    private func performAnswer() async throws {
+        guard let call, let offer = pendingOffer, let sdp = offer.sdp else { throw CallError.peerConnection }
+        ringTimer?.cancel()
+        state = .connecting
+        statusText = "Connessione"
+        configureAudioSession()
+        try await makePeerConnection()
+        guard let pc else { throw CallError.peerConnection }
+        await setRemote(RTCSessionDescription(type: .offer, sdp: sdp))
+        let answer = try await pc.answer(for: RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil))
+        try await pc.setLocalDescription(answer)
+        await sendSignal(.callAnswer, to: call.peer) { $0.sdp = answer.sdp }
+        if !Self.useCallKit { RTCAudioSession.sharedInstance().isAudioEnabled = true }
+        if call.video { cameraOn = true }
+    }
+
+    private func answerOrFail() async {
+        do { try await performAnswer() } catch { fail(error.localizedDescription) }
+    }
+
+    private func performEnd() async {
+        let reason = state == .incoming ? "declined" : "hangup"
+        Diagnostics.record("chiamata: chiusa da me (\(reason)) stato=\(state)")
+        await sendEndIfNeeded(reason: reason)
+        teardown(status: reason == "declined" ? "Rifiutata" : "Terminata")
     }
 
     func flipCamera() {
@@ -136,7 +198,7 @@ final class CallService: NSObject {
             case "failed": .failed
             default: .remoteEnded
             }
-            provider.reportCall(with: call.uuid, endedAt: Date(), reason: reason)
+            if Self.useCallKit { provider.reportCall(with: call.uuid, endedAt: Date(), reason: reason) }
             endedReasonSent = true
             Diagnostics.record("chiamata: \(sender) ha chiuso (\(c.reason ?? "?")) stato=\(state)")
             teardown(status: c.reason == "busy" ? "Occupato" : c.reason == "declined" ? "Rifiutata" : "Terminata")
@@ -169,14 +231,16 @@ final class CallService: NSObject {
         update.supportsHolding = false
         update.supportsGrouping = false
         update.supportsDTMF = false
-        if placeholder != nil {
+        if !Self.useCallKit {
+            // Simulatore: niente CallKit, risponde dalla schermata in-app.
+        } else if placeholder != nil {
             provider.reportCall(with: uuid, updated: update)   // la push VoIP l'aveva gia' mostrata come "HESH"
         } else {
             do { try await provider.reportNewIncomingCall(with: uuid, update: update) } catch { Diagnostics.record("chiamata: reportNewIncomingCall: \(error)"); teardown(status: "Chiamata non mostrabile"); return }
         }
         startRingTimer { [weak self] in
             guard let self, let call = self.call, self.state == .incoming else { return }
-            self.provider.reportCall(with: call.uuid, endedAt: Date(), reason: .unanswered)
+            if Self.useCallKit { self.provider.reportCall(with: call.uuid, endedAt: Date(), reason: .unanswered) }
             self.teardown(status: "Persa")
         }
     }
@@ -289,7 +353,7 @@ final class CallService: NSObject {
 
     private func fail(_ msg: String) {
         Diagnostics.record("chiamata: \(msg)")
-        if let call { provider.reportCall(with: call.uuid, endedAt: Date(), reason: .failed) }
+        if let call, Self.useCallKit { provider.reportCall(with: call.uuid, endedAt: Date(), reason: .failed) }
         Task { await sendEndIfNeeded(reason: "failed") }
         teardown(status: "Chiamata fallita")
     }
@@ -339,60 +403,22 @@ extension CallService: CXProviderDelegate {
     nonisolated func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
         Task { @MainActor in
             guard let call = self.call, call.uuid == action.callUUID else { action.fail(); return }
-            do {
-                self.configureAudioSession()
-                try await self.makePeerConnection()
-                guard let pc = self.pc else { throw CallError.peerConnection }
-                let constraints = RTCMediaConstraints(mandatoryConstraints: ["OfferToReceiveAudio": "true", "OfferToReceiveVideo": "true"], optionalConstraints: nil)
-                let offer = try await pc.offer(for: constraints)
-                try await pc.setLocalDescription(offer)
-                await self.sendSignal(.callOffer, to: call.peer) { $0.sdp = offer.sdp; $0.video = call.video }
-                self.provider.reportOutgoingCall(with: call.uuid, startedConnectingAt: Date())
-                action.fulfill()
-                if call.video { self.cameraOn = true }
-                self.startRingTimer { [weak self] in
-                    guard let self, self.state == .outgoing else { return }
-                    Task { await self.sendEndIfNeeded(reason: "timeout") }
-                    self.provider.reportCall(with: call.uuid, endedAt: Date(), reason: .unanswered)
-                    self.teardown(status: "Nessuna risposta")
-                }
-            } catch {
-                action.fail()
-                self.fail(error.localizedDescription)
-            }
+            do { try await self.performStart(); action.fulfill() } catch { action.fail(); self.fail(error.localizedDescription) }
         }
     }
 
     nonisolated func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
         Task { @MainActor in
-            guard let call = self.call, call.uuid == action.callUUID, let offer = self.pendingOffer, let sdp = offer.sdp else { action.fail(); return }
-            do {
-                self.ringTimer?.cancel()
-                self.state = .connecting
-                self.statusText = "Connessione"
-                self.configureAudioSession()
-                try await self.makePeerConnection()
-                guard let pc = self.pc else { throw CallError.peerConnection }
-                await self.setRemote(RTCSessionDescription(type: .offer, sdp: sdp))
-                let answer = try await pc.answer(for: RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil))
-                try await pc.setLocalDescription(answer)
-                await self.sendSignal(.callAnswer, to: call.peer) { $0.sdp = answer.sdp }
-                action.fulfill()
-                if call.video { self.cameraOn = true }
-            } catch {
-                action.fail()
-                self.fail(error.localizedDescription)
-            }
+            guard let call = self.call, call.uuid == action.callUUID else { action.fail(); return }
+            do { try await self.performAnswer(); action.fulfill() } catch { action.fail(); self.fail(error.localizedDescription) }
         }
     }
 
     nonisolated func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         Task { @MainActor in
-            let reason = self.state == .incoming ? "declined" : "hangup"
             Diagnostics.record("chiamata: CXEndCallAction stato=\(self.state) uuid=\(action.callUUID.uuidString.prefix(8)) mia=\(self.call?.uuid.uuidString.prefix(8) ?? "-")")
-            await self.sendEndIfNeeded(reason: reason)
+            await self.performEnd()
             action.fulfill()
-            self.teardown(status: reason == "declined" ? "Rifiutata" : "Terminata")
         }
     }
 
