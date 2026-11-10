@@ -35,3 +35,20 @@ Il gruppo e' uno stato replicato lato client. Creazione e modifiche viaggiano pa
 ## Posizione
 
 Mai nel server. `location` live: un messaggio ogni 60 s o ogni 100 m, con `until_ts`. Il ricevente mostra l'ultimo punto e marca "non aggiornata" oltre 5 minuti. Geofence: solo evento, mai traccia.
+
+## Chiamate (milestone 4)
+
+Segnalazione WebRTC dentro le normali buste Signal 1:1, `chat = dm:<peer>`, tutte con `call_id` (UUID del chiamante):
+
+| kind | campi | priorità busta |
+|---|---|---|
+| `call_offer` | `sdp`, `video` | `call` (push VoIP) |
+| `call_answer` | `sdp` | `silent` |
+| `call_ice` | `candidate`, `sdp_mid`, `sdp_mline` | `silent` |
+| `call_end` | `reason` (hangup, declined, busy, timeout, failed), `duration_s`, `video` | `silent`, `normal` se `timeout` (chiamata persa) |
+
+`call_end` è l'unico che viene salvato: diventa la riga nel registro chiamate e in chat. Lo manda chi chiude; `timeout` lo manda il chiamante dopo 45 s senza risposta, `busy` il chiamato se è già in chiamata, `declined` il chiamato che rifiuta.
+
+Media: DTLS-SRTP tra i due telefoni; ICE con STUN/TURN presi da `GET /calls/turn` (credenziali temporanee, un'ora). Il server non vede né SDP né media. Offerte più vecchie di 60 s vengono ignorate dal destinatario.
+
+Priorità busta (unico metadato visibile al server): `normal` alert, `high` SOS, `call` push VoIP, `silent` push in background senza avviso.

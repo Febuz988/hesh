@@ -205,6 +205,26 @@ public actor APIClient {
         _ = try await request("PUT", "devices/me/apns", body: try encoder.encode(["apns_token": token]))
     }
 
+    public func setVoIP(token: String) async throws {
+        _ = try await request("PUT", "devices/me/voip", body: try encoder.encode(["voip_token": token]))
+    }
+
+    public struct IceServer: Codable, Sendable {
+        public let urls: [String]
+        public let username: String?
+        public let credential: String?
+    }
+
+    public struct TurnCredentials: Codable, Sendable {
+        public let iceServers: [IceServer]
+        public let ttlS: Int
+        enum CodingKeys: String, CodingKey { case iceServers = "ice_servers", ttlS = "ttl_s" }
+    }
+
+    public func turnCredentials() async throws -> TurnCredentials {
+        try JSONDecoder().decode(TurnCredentials.self, from: try await request("GET", "calls/turn"))
+    }
+
     public func revokeDevice(id: String) async throws {
         _ = try await request("DELETE", "devices/\(id)")
     }

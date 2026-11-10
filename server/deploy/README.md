@@ -34,3 +34,17 @@ docker compose exec api hesh-admin finalize
 - Backup: solo `hesh_db` (chiavi pubbliche, inviti, metadati). Gli allegati sono blob cifrati a scadenza: non serve salvarli.
 - Il job interno scarta buste non ritirate e allegati dopo `HESH_QUEUE_TTL_DAYS`.
 - Mai esporre la porta 8087 oltre il loopback.
+
+## Chiamate (coturn)
+
+Il server non vede i media: coturn fa solo da relay quando i due telefoni non si raggiungono direttamente.
+
+1. `.env`: aggiungere
+   ```
+   HESH_TURN_HOST=api.hesh.it
+   HESH_TURN_SECRET=$(openssl rand -hex 32)
+   HESH_PUBLIC_IP=217.160.116.248
+   ```
+2. Firewall IONOS (pannello, non solo ufw): aprire **3478 TCP+UDP**, **5349 TCP**, **49160-49400 UDP**.
+3. `docker compose up -d turn api`
+4. Verifica: `docker compose logs turn | tail`, poi dall'app una chiamata con Wi-Fi spento da un lato.

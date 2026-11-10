@@ -62,7 +62,7 @@ async def send(body: EnvelopeBatchIn, dev: Dev, session: Sess) -> dict:
         if live:
             delivered_live += 1
         else:
-            await notify(target.apns_token, env.priority)
+            await notify(target, env.priority)
     return {"queued": len(queued), "pushed_live": delivered_live}
 
 

@@ -11,16 +11,21 @@ public actor MessageService {
 
     public var me: String { Keychain.string(for: .username) ?? "" }
 
+    /// Segnalazione chiamate: impostato dall'app (CallKit vive nel target app, non qui).
+    /// Nella NSE resta nil e le buste di chiamata vengono ignorate.
+    public var callHandler: (@Sendable (Content, String) async -> Void)?
+    public func setCallHandler(_ h: (@Sendable (Content, String) async -> Void)?) { callHandler = h }
+
     // MARK: Invio
 
     /// Invia un contenuto a una chat. 1:1: una busta. Gruppo: Sender Key fan-out.
     @discardableResult
-    public func send(_ content: Content, priority: String = "normal") async throws -> Message {
+    public func send(_ content: Content, priority: String? = nil) async throws -> Message {
         var msg = Message(from: content, sender: me, status: "sending")
         let stored = content.isStoredMessage
         if stored { let m = msg; try await db.write { db in try m.save(db) } }
         do {
-            try await sendEnvelopes(for: content, priority: priority)
+            try await sendEnvelopes(for: content, priority: priority ?? content.envelopePriority)
             msg.status = "sent"
         } catch {
             msg.status = "failed"
@@ -98,7 +103,7 @@ public actor MessageService {
         var envelopes: [EnvelopeOut] = []
         for m in chat.members where m != me {
             let (type, ct) = try await crypto.encrypt(plain, for: m)
-            envelopes.append(EnvelopeOut(toUsername: m, msgType: type, ciphertext: ct.base64EncodedString()))
+            envelopes.append(EnvelopeOut(toUsername: m, msgType: type, ciphertext: ct.base64EncodedString(), priority: "silent"))
         }
         try await api.send(envelopes)
     }
@@ -206,6 +211,11 @@ public actor MessageService {
             await SocialService.shared.applyIncomingProfile(c, from: sender)
         case .contactRequest, .contactAccept, .contactBlock:
             await SocialService.shared.applyIncomingContact(c, from: sender)
+        case .callOffer, .callAnswer, .callIce:
+            await callHandler?(c, sender)
+        case .callEnd:
+            try await storeIncoming(c, from: sender)
+            await callHandler?(c, sender)
         case .secretStart, .secretUpdate:
             try await db.write { db in
                 var chat = try Chat.fetchOne(db, key: c.chat) ?? Chat.dm(sender)

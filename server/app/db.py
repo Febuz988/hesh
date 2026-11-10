@@ -19,6 +19,14 @@ async def init_db() -> None:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    # Colonne aggiunte dopo la prima release: ALTER additivi, idempotenti.
+    from sqlalchemy import text
+    for stmt in ("ALTER TABLE devices ADD COLUMN voip_token VARCHAR(200)",):
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(stmt))
+        except Exception:  # noqa: BLE001  colonna gia' presente
+            pass
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:

@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth import current_device
 from ..db import get_session
 from ..models import Device, User, now
-from ..schemas import ApnsIn, DeviceOut
+from ..schemas import ApnsIn, DeviceOut, VoipIn
 
 router = APIRouter(prefix="/devices", tags=["devices"])
 Sess = Annotated[AsyncSession, Depends(get_session)]
@@ -27,6 +27,12 @@ async def list_devices(dev: Dev, session: Sess) -> list[DeviceOut]:
 @router.put("/me/apns", status_code=204)
 async def set_apns(body: ApnsIn, dev: Dev, session: Sess) -> None:
     dev.apns_token = body.apns_token
+    await session.commit()
+
+
+@router.put("/me/voip", status_code=204)
+async def set_voip(body: VoipIn, dev: Dev, session: Sess) -> None:
+    dev.voip_token = body.voip_token
     await session.commit()
 
 

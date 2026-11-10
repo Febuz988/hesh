@@ -43,7 +43,9 @@ final class NotificationService: UNNotificationServiceExtension {
                 best?.interruptionLevel = .timeSensitive
                 best?.sound = UNNotificationSound(named: UNNotificationSoundName("sos.wav"))
             case .sosResolved:
-                best?.body = "Emergenza rientrata"
+                best?.body = "Avviso rientrato"
+            case .callEnd:
+                best?.body = c.video == true ? "Videochiamata persa" : "Chiamata persa"
             case .text:
                 best?.body = previews ? (c.body ?? "Nuovo messaggio") : "Nuovo messaggio"
             case .attachment:

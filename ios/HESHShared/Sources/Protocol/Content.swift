@@ -39,6 +39,14 @@ public struct Content: Codable, Sendable {
     public var distribution: String?
     public var lock: Bool?
     public var battery: Double?
+    // chiamate
+    public var callId: String?
+    public var sdp: String?
+    public var candidate: String?
+    public var sdpMid: String?
+    public var sdpMLine: Int?
+    public var video: Bool?
+    public var reason: String?      // call_end: hangup | declined | busy | timeout | failed | missed
 
     public enum Kind: String, Codable, Sendable {
         case text, attachment, location, sos, sosResolved = "sos_resolved", geofence, checkin
@@ -46,6 +54,7 @@ public struct Content: Codable, Sendable {
         case contactRequest = "contact_request", contactAccept = "contact_accept", contactBlock = "contact_block"
         case groupCreate = "group_create", groupUpdate = "group_update", senderKey = "sender_key"
         case secretStart = "secret_start", secretUpdate = "secret_update", keyChangeAck = "key_change_ack"
+        case callOffer = "call_offer", callAnswer = "call_answer", callIce = "call_ice", callEnd = "call_end"
     }
 
     enum CodingKeys: String, CodingKey {
@@ -54,6 +63,7 @@ public struct Content: Codable, Sendable {
         case durationS = "duration_s", lat, lon, accM = "acc_m", liveUntilTs = "live_until_ts", audioAtt = "audio_att"
         case sosId = "sos_id", place, event, targetId = "target_id", scope, ids, profileKey = "profile_key"
         case avatarAtt = "avatar_att", birthday, groupId = "group_id", members, distribution, lock, battery
+        case callId = "call_id", sdp, candidate, sdpMid = "sdp_mid", sdpMLine = "sdp_mline", video, reason
     }
 
     public init(kind: Kind, chat: String) {
@@ -95,11 +105,32 @@ public struct Content: Codable, Sendable {
     /// Kind che diventano righe visibili in chat. Gli altri sono controllo.
     public var isStoredMessage: Bool {
         switch kind {
-        case .text, .attachment, .sos, .sosResolved, .geofence, .checkin: return true
+        case .text, .attachment, .sos, .sosResolved, .geofence, .checkin, .callEnd: return true
         case .location: return liveUntilTs == nil || event != nil   // punto singolo o avvio/stop: si'; aggiornamenti live: no
         default: return false
         }
     }
+
+    /// Kind per cui il destinatario deve essere avvisato (push con alert). Il resto viaggia
+    /// come push silenziosa: il server lo sa solo tramite `priority`, mai dal contenuto.
+    public var wantsAlert: Bool {
+        if isStoredMessage { return kind != .callEnd || reason == "timeout" }   // chiamata persa: avvisa
+        switch kind {
+        case .contactRequest, .contactAccept, .groupCreate, .groupUpdate, .secretStart: return true
+        default: return false
+        }
+    }
+
+    /// Priorita' della busta: high (SOS), call (offerta di chiamata), normal, silent.
+    public var envelopePriority: String {
+        switch kind {
+        case .sos: return "high"
+        case .callOffer: return "call"
+        default: return wantsAlert ? "normal" : "silent"
+        }
+    }
+
+    public var isCallSignal: Bool { [.callOffer, .callAnswer, .callIce, .callEnd].contains(kind) }
 
     public func encoded() throws -> Data { try JSONEncoder().encode(self) }
     public static func decode(_ data: Data) throws -> Content { try JSONDecoder().decode(Content.self, from: data) }

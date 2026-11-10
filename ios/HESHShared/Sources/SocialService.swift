@@ -82,7 +82,7 @@ public actor SocialService {
     private func sendDM(_ content: Content, to user: String) async throws {
         let plain = try content.encoded()
         let (type, ct) = try await crypto.encrypt(plain, for: user)
-        try await APIClient.shared.send([EnvelopeOut(toUsername: user, msgType: type, ciphertext: ct.base64EncodedString())])
+        try await APIClient.shared.send([EnvelopeOut(toUsername: user, msgType: type, ciphertext: ct.base64EncodedString(), priority: content.envelopePriority)])
     }
 
     /// Chiamato da MessageService quando arriva un .profile: scarica e decifra l'avatar.

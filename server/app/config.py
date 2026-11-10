@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     apns_topic: str = "it.hesh.app"
     apns_sandbox: bool = True
 
+    turn_host: str = ""            # es. turn.hesh.it; vuoto = solo STUN pubblico, niente relay
+    turn_secret: str = ""          # static-auth-secret di coturn
+    turn_ttl_s: int = 3600
+
     rp_id: str = "hesh.it"
     rp_name: str = "HESH"
     backup_max_mb: int = 5

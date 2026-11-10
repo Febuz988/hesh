@@ -30,11 +30,22 @@ services:
       HESH_APNS_TEAM_ID: ${HESH_APNS_TEAM_ID:-}
       HESH_APNS_TOPIC: ${HESH_APNS_TOPIC:-it.hesh.app}
       HESH_APNS_SANDBOX: ${HESH_APNS_SANDBOX:-false}
+      HESH_TURN_HOST: ${HESH_TURN_HOST:-}
+      HESH_TURN_SECRET: ${HESH_TURN_SECRET:-}
     volumes:
       - hesh_attachments:/data/attachments
       - ./secrets:/secrets:ro
     ports:
       - "127.0.0.1:8087:8080"   # solo loopback: Nginx fa da fronte
+
+  turn:
+    image: coturn/coturn:4.6
+    restart: unless-stopped
+    network_mode: host           # UDP relay su molte porte: host networking evita NAT doppio
+    command: ["-c", "/etc/coturn/turnserver.conf", "--static-auth-secret=${HESH_TURN_SECRET}", "--external-ip=${HESH_PUBLIC_IP}"]
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
 
 volumes:
   hesh_db:

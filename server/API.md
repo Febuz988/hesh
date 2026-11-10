@@ -28,3 +28,10 @@ Tutti i binari sono base64. Autenticazione: `Authorization: Bearer <token>` rice
 Tipi `msg_type` (libsignal `CiphertextMessage.Type`): 3 = PreKeySignalMessage, 2 = SignalMessage, 7 = SenderKeyMessage, 8 = PlaintextContent (solo per DecryptionError).
 
 Il contenuto decifrato (testo, gruppo, posizione, SOS, delete, profile key, avatar id) e' un protobuf/JSON definito dal client: `ios/Protocol.md`.
+
+## Chiamate
+
+- `GET /calls/turn` → `{ "ice_servers": [{urls, username?, credential?}], "ttl_s": 3600 }`. Credenziali coturn REST (`<scadenza>:<user_id>` + HMAC-SHA1 del segreto condiviso). Senza `HESH_TURN_HOST` restituisce solo STUN pubblico.
+- `PUT /devices/me/voip` `{ "voip_token": "<hex>" }`: token PushKit, usato solo per buste con `priority = call`.
+
+Priorità busta: `normal | high | call | silent`. `call` → push VoIP (topic `<bundle>.voip`), `silent` → push `content-available` senza alert.

@@ -99,7 +99,7 @@ class EnvelopeIn(BaseModel):
     to_device_id: int = 1
     msg_type: int = Field(ge=1, le=10)
     ciphertext: Annotated[str, Field(max_length=1_000_000)]
-    priority: str = Field(default="normal", pattern="^(normal|high)$")
+    priority: str = Field(default="normal", pattern="^(normal|high|call|silent)$")  # high=SOS, call=VoIP push, silent=solo background
 
 
 class EnvelopeBatchIn(BaseModel):
@@ -114,6 +114,10 @@ class EnvelopeOut(BaseModel):
     ciphertext: str
     priority: str
     created_at: str
+
+
+class VoipIn(BaseModel):
+    voip_token: str | None = Field(default=None, max_length=200)
 
 
 class AckIn(BaseModel):

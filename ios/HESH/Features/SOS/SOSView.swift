@@ -76,7 +76,7 @@ struct SOSView: View {
                             VStack(alignment: .leading, spacing: 10) {
                                 SectionLabel("Ultimo SOS · \(sent.ts.formatted(date: .abbreviated, time: .shortened))")
                                 Label("Inviato al gruppo", systemImage: "checkmark.circle.fill").font(.system(size: 13)).foregroundStyle(theme.accent)
-                                Button("Comunica che l'emergenza è rientrata") { Task { await resolve(sent) } }
+                                Button("Comunica che è tutto a posto") { Task { await resolve(sent) } }
                                     .buttonStyle(PillButtonStyle(filled: false))
                             }
                             .padding(16)

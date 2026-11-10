@@ -51,12 +51,13 @@ struct MainTabView: View {
     var body: some View {
         TabView {
             ChatsView().tabItem { Label("Chat", systemImage: "bubble.left.and.bubble.right") }
-            CallsPlaceholderView().tabItem { Label("Chiamate", systemImage: "phone") }
+            CallsView().tabItem { Label("Chiamate", systemImage: "phone") }
             SOSView().tabItem { Label("SOS", systemImage: "exclamationmark.triangle") }
             FamilyMapView().tabItem { Label("Mappa", systemImage: "map") }
             ProfileView().tabItem { Label("Io", systemImage: "person.crop.circle") }
         }
         .tint(theme.accent)
+        .fullScreenCover(isPresented: Binding(get: { CallService.shared.call != nil }, set: { _ in })) { CallView() }
         .overlay(alignment: .top) {
             if let lastError {
                 Text(lastError)
@@ -75,9 +76,4 @@ struct MainTabView: View {
     }
 }
 
-struct CallsPlaceholderView: View {
-    var body: some View {
-        ZStack { HESHBackground(); Text("Chiamate: milestone 4").foregroundStyle(.secondary) }
-    }
-}
 

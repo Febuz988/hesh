@@ -75,6 +75,14 @@ struct ChatView: View {
         .navigationTitle(chat.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            if let peer = liveChat.dmUsername {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { CallService.shared.startCall(to: peer, video: true) } label: { Image(systemName: "video") }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { CallService.shared.startCall(to: peer, video: false) } label: { Image(systemName: "phone") }
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink { ChatInfoView(chat: liveChat) } label: { Image(systemName: liveChat.isSecret ? "lock.circle" : "info.circle") }
             }
@@ -220,7 +228,7 @@ struct Bubble: View {
         guard let c = message.content else { return nil }
         let who = mine ? "Hai" : message.sender
         switch c.kind {
-        case .sosResolved: return ("\(mine ? "Hai comunicato" : message.sender + " ha comunicato") che l'emergenza è rientrata", "checkmark.shield")
+        case .sosResolved: return ("\(mine ? "Hai comunicato" : message.sender + " ha comunicato") che l'avviso è rientrato", "checkmark.shield")
         case .checkin: return ("\(mine ? "Sei arrivato" : message.sender + " è arrivato")\(c.place.map { " a \($0)" } ?? "")", "figure.walk.arrival")
         case .geofence: return ("\(mine ? "Sei" : message.sender + " è") \(c.event == "enter" ? "arrivato a" : "uscito da") \(c.place ?? "")", "mappin.and.ellipse")
         case .location:
@@ -232,6 +240,7 @@ struct Bubble: View {
             }
             return ("\(mine ? "Hai inviato" : message.sender + " ha inviato") la posizione", "mappin")
         case .groupCreate, .groupUpdate, .senderKey: return ("Gruppo aggiornato", "person.2")
+        case .callEnd: return (CallLog.describe(c, mine: mine), c.video == true ? "video" : "phone")
         default: return nil
         }
     }

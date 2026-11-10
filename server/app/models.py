@@ -46,6 +46,7 @@ class Device(Base):
     name: Mapped[str] = mapped_column(String(64), default="iPhone")
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)  # sha256 del bearer
     apns_token: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    voip_token: Mapped[str | None] = mapped_column(String(200), nullable=True)   # PushKit, solo per le chiamate
     signed_prekey_id: Mapped[int] = mapped_column(Integer)
     signed_prekey: Mapped[bytes] = mapped_column(LargeBinary)
     signed_prekey_signature: Mapped[bytes] = mapped_column(LargeBinary)

@@ -24,6 +24,9 @@ packages:
   GRDB:
     url: https://github.com/groue/GRDB.swift
     from: "7.0.0"
+  WebRTC:
+    url: https://github.com/stasel/WebRTC
+    from: "125.0.0"
 
 targets:
   HESHShared:
@@ -63,7 +66,7 @@ targets:
         NSLocationAlwaysAndWhenInUseUsageDescription: "Serve per gli avvisi di arrivo e partenza dai luoghi che imposti e per la condivisione a tempo che attivi tu. Puoi interromperla quando vuoi."
         NSFaceIDUsageDescription: "Per sbloccare HESH e le chat segrete su questo iPhone. Il volto non lascia mai il dispositivo."
         NSPhotoLibraryUsageDescription: "Per scegliere foto e video da inviare."
-        UIBackgroundModes: [remote-notification, location, fetch]
+        UIBackgroundModes: [remote-notification, location, fetch, voip, audio]
         CFBundleURLTypes:
           - CFBundleURLSchemes: [hesh]
             CFBundleURLName: it.hesh.app
@@ -78,6 +81,7 @@ targets:
     dependencies:
       - target: HESHShared
       - target: HESHNotificationService
+      - package: WebRTC
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: it.hesh.app
