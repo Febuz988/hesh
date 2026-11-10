@@ -16,7 +16,8 @@ final class SessionState {
         // Prima apertura dopo un'installazione: stato pulito, altrimenti si entra con
         // un token valido ma senza chiavi Signal.
         if !UserDefaults.standard.bool(forKey: "hesh.installed") {
-            Keychain.wipe()
+            // Se il database c'e' ancora e' un aggiornamento, non una reinstallazione.
+            if !FileManager.default.fileExists(atPath: HESHConfig.databaseURL.path) { Keychain.wipe() }
             UserDefaults.standard.set(true, forKey: "hesh.installed")
         }
         username = Keychain.string(for: .username)
