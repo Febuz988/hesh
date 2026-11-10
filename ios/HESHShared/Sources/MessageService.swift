@@ -211,6 +211,8 @@ public actor MessageService {
             await SocialService.shared.applyIncomingProfile(c, from: sender)
         case .contactRequest, .contactAccept, .contactBlock:
             await SocialService.shared.applyIncomingContact(c, from: sender)
+        case .unknown:
+            break
         case .callOffer, .callAnswer, .callIce:
             await callHandler?(c, sender)
         case .callEnd:

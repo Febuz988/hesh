@@ -55,6 +55,12 @@ public struct Content: Codable, Sendable {
         case groupCreate = "group_create", groupUpdate = "group_update", senderKey = "sender_key"
         case secretStart = "secret_start", secretUpdate = "secret_update", keyChangeAck = "key_change_ack"
         case callOffer = "call_offer", callAnswer = "call_answer", callIce = "call_ice", callEnd = "call_end"
+        case unknown   // kind di una versione piu' recente dell'app: ignorato
+
+        public init(from decoder: Decoder) throws {
+            let raw = try decoder.singleValueContainer().decode(String.self)
+            self = Kind(rawValue: raw) ?? .unknown
+        }
     }
 
     enum CodingKeys: String, CodingKey {
