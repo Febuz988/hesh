@@ -43,6 +43,8 @@ final class CallService: NSObject {
     private var frontCamera = true
     private var pendingOffer: Content?
     private var remoteCandidates: [RTCIceCandidate] = []
+    private var earlyCandidates: [String: [RTCIceCandidate]] = [:]   // ICE arrivati prima dell'offerta, per callId
+    private var loggedCandidateTypes = Set<String>()
     private var ringTimer: Task<Void, Never>?
     private var voipPlaceholder: UUID?
     private var pushRegistry: PKPushRegistry?
@@ -186,8 +188,13 @@ final class CallService: NSObject {
             statusText = "Connessione"
             await setRemote(RTCSessionDescription(type: .answer, sdp: sdp))
         case .callIce:
-            guard let call, call.callId == callId, let cand = c.candidate else { return }
+            guard let cand = c.candidate else { return }
             let ice = RTCIceCandidate(sdp: cand, sdpMLineIndex: Int32(c.sdpMLine ?? 0), sdpMid: c.sdpMid)
+            guard let call, call.callId == callId else {
+                // Offerta non ancora arrivata (le buste possono superarsi): teniamo da parte.
+                earlyCandidates[callId, default: []].append(ice)
+                return
+            }
             if let pc, pc.remoteDescription != nil { try? await pc.add(ice) } else { remoteCandidates.append(ice) }
         case .callEnd:
             guard let call, call.callId == callId else { return }
@@ -221,6 +228,8 @@ final class CallService: NSObject {
         let uuid = placeholder ?? UUID()
         pendingOffer = c
         _ = sdp
+        remoteCandidates = earlyCandidates.removeValue(forKey: callId) ?? []
+        earlyCandidates.removeAll()
         call = ActiveCall(uuid: uuid, callId: callId, peer: sender, video: c.video == true, outgoing: false)
         state = .incoming
         statusText = "Chiamata in arrivo"
@@ -289,6 +298,8 @@ final class CallService: NSObject {
         cfg.continualGatheringPolicy = .gatherContinually
         cfg.iceServers = creds?.iceServers.map { RTCIceServer(urlStrings: $0.urls, username: $0.username, credential: $0.credential) }
             ?? [RTCIceServer(urlStrings: ["stun:stun.l.google.com:19302"])]
+        loggedCandidateTypes.removeAll()
+        Diagnostics.record("chiamata: ICE servers \(cfg.iceServers.flatMap(\.urlStrings).joined(separator: " "))")
         let constraints = RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)
         guard let pc = factory.peerConnection(with: cfg, constraints: constraints, delegate: self) else { throw CallError.peerConnection }
         self.pc = pc
@@ -379,6 +390,7 @@ final class CallService: NSObject {
         remoteVideoTrack = nil
         remoteHasVideo = false
         remoteCandidates.removeAll()
+        earlyCandidates.removeAll()
         pendingOffer = nil
         RTCAudioSession.sharedInstance().isAudioEnabled = false
         statusText = status
@@ -461,6 +473,10 @@ extension CallService: RTCPeerConnectionDelegate {
     nonisolated func peerConnection(_ peerConnection: RTCPeerConnection, didGenerate candidate: RTCIceCandidate) {
         Task { @MainActor in
             guard let call = self.call else { return }
+            if let r = candidate.sdp.range(of: " typ ") {
+                let type = String(candidate.sdp[r.upperBound...].prefix(while: { $0 != " " }))
+                if self.loggedCandidateTypes.insert(type).inserted { Diagnostics.record("chiamata: candidato locale \(type)") }
+            }
             await self.sendSignal(.callIce, to: call.peer) { $0.candidate = candidate.sdp; $0.sdpMid = candidate.sdpMid; $0.sdpMLine = Int(candidate.sdpMLineIndex) }
         }
     }
