@@ -55,8 +55,7 @@ final class CallService: NSObject {
         let enc = RTCDefaultVideoEncoderFactory()
         let dec = RTCDefaultVideoDecoderFactory()
         factory = RTCPeerConnectionFactory(encoderFactory: enc, decoderFactory: dec)
-        let cfg = CXProviderConfiguration()
-        cfg.localizedName = "HESH"
+        let cfg = CXProviderConfiguration()   // il nome mostrato e' quello dell'app: HESH
         cfg.supportsVideo = true
         cfg.maximumCallGroups = 1
         cfg.maximumCallsPerCallGroup = 1
@@ -223,9 +222,8 @@ final class CallService: NSObject {
         let cfg = RTCConfiguration()
         cfg.sdpSemantics = .unifiedPlan
         cfg.continualGatheringPolicy = .gatherContinually
-        cfg.iceServers = (creds?.iceServers ?? [APIClient.IceServer(urls: ["stun:stun.l.google.com:19302"], username: nil, credential: nil)]).map {
-            RTCIceServer(urlStrings: $0.urls, username: $0.username, credential: $0.credential)
-        }
+        cfg.iceServers = creds?.iceServers.map { RTCIceServer(urlStrings: $0.urls, username: $0.username, credential: $0.credential) }
+            ?? [RTCIceServer(urlStrings: ["stun:stun.l.google.com:19302"])]
         let constraints = RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)
         guard let pc = factory.peerConnection(with: cfg, constraints: constraints, delegate: self) else { throw CallError.peerConnection }
         self.pc = pc
