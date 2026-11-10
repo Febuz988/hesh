@@ -138,6 +138,7 @@ final class CallService: NSObject {
             }
             provider.reportCall(with: call.uuid, endedAt: Date(), reason: reason)
             endedReasonSent = true
+            Diagnostics.record("chiamata: \(sender) ha chiuso (\(c.reason ?? "?")) stato=\(state)")
             teardown(status: c.reason == "busy" ? "Occupato" : c.reason == "declined" ? "Rifiutata" : "Terminata")
         default: break
         }
@@ -171,7 +172,7 @@ final class CallService: NSObject {
         if placeholder != nil {
             provider.reportCall(with: uuid, updated: update)   // la push VoIP l'aveva gia' mostrata come "HESH"
         } else {
-            do { try await provider.reportNewIncomingCall(with: uuid, update: update) } catch { teardown(status: "Chiamata non mostrabile"); return }
+            do { try await provider.reportNewIncomingCall(with: uuid, update: update) } catch { Diagnostics.record("chiamata: reportNewIncomingCall: \(error)"); teardown(status: "Chiamata non mostrabile"); return }
         }
         startRingTimer { [weak self] in
             guard let self, let call = self.call, self.state == .incoming else { return }
@@ -332,7 +333,7 @@ final class CallService: NSObject {
 
 extension CallService: CXProviderDelegate {
     nonisolated func providerDidReset(_ provider: CXProvider) {
-        Task { @MainActor in self.teardown(status: "Reset") }
+        Task { @MainActor in Diagnostics.record("chiamata: providerDidReset"); self.teardown(status: "Reset") }
     }
 
     nonisolated func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
@@ -388,6 +389,7 @@ extension CallService: CXProviderDelegate {
     nonisolated func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         Task { @MainActor in
             let reason = self.state == .incoming ? "declined" : "hangup"
+            Diagnostics.record("chiamata: CXEndCallAction stato=\(self.state) uuid=\(action.callUUID.uuidString.prefix(8)) mia=\(self.call?.uuid.uuidString.prefix(8) ?? "-")")
             await self.sendEndIfNeeded(reason: reason)
             action.fulfill()
             self.teardown(status: reason == "declined" ? "Rifiutata" : "Terminata")
@@ -439,6 +441,7 @@ extension CallService: RTCPeerConnectionDelegate {
 
     nonisolated func peerConnection(_ peerConnection: RTCPeerConnection, didChange newState: RTCIceConnectionState) {
         Task { @MainActor in
+            Diagnostics.record("chiamata: ICE \(newState.rawValue) (0 new 1 check 2 conn 3 compl 4 fail 5 disc 6 closed)")
             switch newState {
             case .connected, .completed:
                 guard var call = self.call, self.state != .active else { return }
