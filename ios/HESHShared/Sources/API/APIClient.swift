@@ -165,6 +165,25 @@ public actor APIClient {
         try await request("GET", "auth/backup")
     }
 
+    public struct BackupMeta: Codable, Sendable {
+        public let version: Int
+        public let updatedAt: Date
+        public let bytes: Int
+    }
+
+    /// nil se il server non ha nessun backup per questo account.
+    public func backupMeta() async throws -> BackupMeta? {
+        do {
+            let data = try await request("GET", "auth/backup/meta")
+            let dec = JSONDecoder()
+            dec.keyDecodingStrategy = .convertFromSnakeCase
+            dec.dateDecodingStrategy = .secondsSince1970
+            return try dec.decode(BackupMeta.self, from: data)
+        } catch APIError.http(let code, _) where code == 404 {
+            return nil
+        }
+    }
+
     public func reprovision(_ m: CryptoService.RegistrationMaterial, apnsToken: String? = nil) async throws {
         var obj: [String: Any] = [
             "identity_key": m.identityKey, "registration_id": m.registrationId,

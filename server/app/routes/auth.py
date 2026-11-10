@@ -198,6 +198,15 @@ async def put_backup(request: Request, dev: Dev, session: Sess) -> None:
     await session.commit()
 
 
+@router.get("/backup/meta")
+async def backup_meta(dev: Dev, session: Sess) -> dict:
+    """Solo versione e data: per mostrare 'ultimo backup' senza scaricare il blob."""
+    b = await session.get(Backup, dev.user_id)
+    if b is None:
+        raise HTTPException(404, "nessun backup")
+    return {"version": b.version, "updated_at": int(aware(b.updated_at).timestamp()), "bytes": len(b.blob)}
+
+
 @router.get("/backup")
 async def get_backup(dev: Dev, session: Sess):
     from fastapi.responses import Response

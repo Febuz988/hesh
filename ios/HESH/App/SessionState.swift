@@ -7,9 +7,20 @@ import UserNotifications
 @Observable
 @MainActor
 final class SessionState {
-    var username: String? = Keychain.string(for: .username)
+    var username: String?
     var pendingInvite: String?
     var isLocked = false
+
+    init() {
+        // Il Keychain sopravvive alla disinstallazione, il database e UserDefaults no.
+        // Prima apertura dopo un'installazione: stato pulito, altrimenti si entra con
+        // un token valido ma senza chiavi Signal.
+        if !UserDefaults.standard.bool(forKey: "hesh.installed") {
+            Keychain.wipe()
+            UserDefaults.standard.set(true, forKey: "hesh.installed")
+        }
+        username = Keychain.string(for: .username)
+    }
 
     var isLoggedIn: Bool { username != nil && Keychain.string(for: .sessionToken) != nil }
 

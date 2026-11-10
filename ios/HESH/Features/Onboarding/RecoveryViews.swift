@@ -179,12 +179,12 @@ struct AuthSettingsView: View {
             List {
                 Section("Frase di recupero") {
                     if !hasPhrase {
-                        NavigationLink("Genera le 12 parole e il primo backup") { RecoverySetupView { hasPhrase = true } }
+                        NavigationLink("Genera le 12 parole e il primo backup") { RecoverySetupView { Task { await load() } } }
                     }
                     if let phrase { PhraseGrid(words: phrase).listRowBackground(Color.clear) }
                     if hasPhrase { Button(phrase == nil ? "Mostra con Face ID" : "Nascondi") { if phrase == nil { reveal() } else { phrase = nil } } }
-                    LabeledContent("Ultimo backup", value: lastBackup.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "mai")
-                    Button("Aggiorna il backup adesso") { Task { busy = true; try? await Recovery.shared.uploadBackup(); lastBackup = await Recovery.shared.lastUpload; busy = false } }.disabled(busy)
+                    LabeledContent("Ultimo backup sul server", value: lastBackup.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "nessuno")
+                    Button("Aggiorna il backup adesso") { Task { busy = true; do { try await Recovery.shared.uploadBackup(); error = nil } catch { self.error = error.localizedDescription }; lastBackup = await Recovery.shared.serverBackupDate(); busy = false } }.disabled(busy || !hasPhrase)
                 }
                 Section("Passkey") {
                     ForEach(passkeys, id: \.0) { id, name in
@@ -207,6 +207,7 @@ struct AuthSettingsView: View {
     private func load() async {
         hasPhrase = await Recovery.shared.hasPhrase
         lastBackup = await Recovery.shared.lastUpload
+        lastBackup = await Recovery.shared.serverBackupDate()
         passkeys = ((try? await APIClient.shared.passkeys()) ?? []).compactMap { d in
             guard let id = d["id"]?.value as? String else { return nil }
             return (id, d["name"]?.value as? String ?? "Passkey")

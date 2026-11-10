@@ -124,7 +124,15 @@ public actor Recovery {
         defaults?.set(Date(), forKey: "backup.lastUpload")
     }
 
+    /// Data locale dell'ultimo caricamento riuscito (veloce, puo' mancare dopo una reinstallazione).
     public var lastUpload: Date? { defaults?.object(forKey: "backup.lastUpload") as? Date }
+
+    /// Data dell'ultimo backup secondo il server: la verita'. nil = nessun backup.
+    public func serverBackupDate() async -> Date? {
+        guard let meta = try? await APIClient.shared.backupMeta() else { return nil }
+        defaults?.set(meta.updatedAt, forKey: "backup.lastUpload")
+        return meta.updatedAt
+    }
 
     /// Nuovo dispositivo: dopo il login con passkey, scarica e ripristina con le 12 parole,
     /// poi riprovisiona le chiavi sul server.
@@ -148,5 +156,6 @@ public actor Recovery {
         let m = try await CryptoService.shared.prepareRegistration(reuseIdentity: true)
         try await APIClient.shared.reprovision(m)
         try Keychain.set(username, for: .username)
+        defaults?.set(payload.createdAt, forKey: "backup.lastUpload")
     }
 }
