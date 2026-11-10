@@ -72,7 +72,9 @@ targets:
       properties:
         aps-environment: development
         com.apple.security.application-groups: [group.it.hesh]
-        com.apple.developer.associated-domains: [applinks:hesh.it, webcredentials:hesh.it]
+        # ?mode=developer: l'iPhone legge l'AASA direttamente da hesh.it invece che dalla CDN Apple
+        # (serve Impostazioni > Sviluppatore > "Associated Domains Development" attivo). Togliere per TestFlight.
+        com.apple.developer.associated-domains: ["applinks:hesh.it?mode=developer", "webcredentials:hesh.it?mode=developer"]
     dependencies:
       - target: HESHShared
       - target: HESHNotificationService
