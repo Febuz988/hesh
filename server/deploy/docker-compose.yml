@@ -43,6 +43,8 @@ services:
     restart: unless-stopped
     network_mode: host           # UDP relay su molte porte: host networking evita NAT doppio
     command: ["-c", "/etc/coturn/turnserver.conf", "--static-auth-secret=${HESH_TURN_SECRET}", "--external-ip=${HESH_PUBLIC_IP}"]
+    logging:
+      options: { max-size: "5m", max-file: "2" }
     volumes:
       - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
